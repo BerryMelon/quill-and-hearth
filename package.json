@@ -1,0 +1,11 @@
+{
+  "name": "quill-and-hearth",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lua:check": "node tools/lua-check.mjs"
+  },
+  "devDependencies": {
+    "luaparse": "^0.3.1"
+  }
+}
