@@ -80,7 +80,7 @@ function Export.ToMarkdown(entries, info)
     return table.concat(out, "\n")
 end
 
---- favoritesOnly: export only favourite entries. Hidden entries are never exported.
+--- favoritesOnly: export only favourite entries.
 function QH:BuildJournalMarkdown(favoritesOnly)
     local profile = self:GetProfile()
     local meta = self.char and self.char.meta or {}
@@ -88,7 +88,7 @@ function QH:BuildJournalMarkdown(favoritesOnly)
     for _, ch in ipairs(self:GetChapters()) do
         local kept = {}
         for _, e in ipairs(ch.entries) do
-            if not e.hidden and (not favoritesOnly or e.favorite) then
+            if not favoritesOnly or e.favorite then
                 table.insert(kept, e)
                 table.insert(entries, e)
             end

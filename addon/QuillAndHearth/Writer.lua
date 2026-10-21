@@ -15,6 +15,11 @@ function QH:GetJournal()
     j.entries = j.entries or {}
     j.processedThrough = j.processedThrough or 0
     j.memory = j.memory or ""
+    if not j.unhidden then
+        -- "Hide" was replaced by delete (v0.10.3): bring back anything hidden earlier.
+        for _, e in ipairs(j.entries) do e.hidden = nil end
+        j.unhidden = true
+    end
     return j
 end
 
@@ -203,18 +208,37 @@ function QH:EditEntry(id, title, body)
     return target
 end
 
-function QH:SetEntryHidden(id, hidden)
-    local target = self:FindEntry(id)
-    if not target then return end
-    target.hidden = hidden or nil
-    self:Send("ENTRY_WRITTEN", target)
-end
-
 function QH:SetEntryFavorite(id, favorite)
     local target = self:FindEntry(id)
     if not target then return end
     target.favorite = favorite or nil
     self:Send("ENTRY_WRITTEN", target)
+end
+
+--- Delete an entry for good (its text and its stored prompt). The nights it covered stay written,
+--- so they won't come back as an unwritten page. A chapter summary saved on this entry moves to
+--- the next entry of the same chapter.
+function QH:DeleteEntry(id)
+    local j = self:GetJournal()
+    local index
+    for i, e in ipairs(j.entries) do
+        if e.id == id then index = i end
+    end
+    if not index then return false end
+
+    if j.chapters and j.chapters[id] then
+        for _, ch in ipairs(self:GetChapters()) do
+            if ch.key == id and ch.entries[2] then
+                j.chapters[ch.entries[2].id] = j.chapters[id]
+            end
+        end
+        j.chapters[id] = nil
+    end
+
+    local removed = table.remove(j.entries, index)
+    QH:Print(('"%s" was deleted.'):format(removed.title or "Untitled"))
+    self:Send("ENTRY_WRITTEN")
+    return true
 end
 
 ---------------------------------------------------------------------------

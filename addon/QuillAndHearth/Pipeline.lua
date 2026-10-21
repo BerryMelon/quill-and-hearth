@@ -654,12 +654,10 @@ function P.BuildChapterPrompt(profile, meta, chapter)
     local out = { CHAPTER_RULES, "", "CHARACTER", P.DescribeCharacter(profile, meta), "",
         ("CHAPTER %s (days %d to %d)"):format(chapter.numeral or "?", chapter.firstDay or 0, chapter.lastDay or 0), "" }
     for _, e in ipairs(chapter.entries) do
-        if not e.hidden then
-            local body = P.Clean(e.body, 700) or ""
-            table.insert(out, ("Day %d - %s:"):format(e.day or 0, e.title or "Untitled"))
-            table.insert(out, OneLine(body))
-            table.insert(out, "")
-        end
+        local body = P.Clean(e.body, 700) or ""
+        table.insert(out, ("Day %d - %s:"):format(e.day or 0, e.title or "Untitled"))
+        table.insert(out, OneLine(body))
+        table.insert(out, "")
     end
     table.insert(out, CHAPTER_FORMAT)
     return table.concat(out, "\n")

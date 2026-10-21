@@ -476,7 +476,7 @@ function T.ChapterSummary(chapter, profile)
     end
     local titles = {}
     for _, e in ipairs(chapter.entries) do
-        if not e.hidden and e.title then table.insert(titles, '"' .. e.title .. '"') end
+        if e.title then table.insert(titles, '"' .. e.title .. '"') end
     end
     while #titles > 6 do table.remove(titles, 1) end
     local zones = chapter.zoneOrder or {}

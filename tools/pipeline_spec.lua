@@ -397,17 +397,13 @@ do
         assert(not plain.summary:find("{"), "unfilled placeholder")
     end)
 
-    test("Edit, hide and favourite entries", function()
+    test("Edit and favourite entries", function()
         local e = W:EditEntry("b", "  The Lynx Hunt ", "New words.\r\nSecond line.")
         eq(e.title, "The Lynx Hunt")
         eq(e.body, "New words.\nSecond line.")
         local bad, err = W:EditEntry("b", "x", "   ")
         eq(bad, nil)
         assert(err)
-        W:SetEntryHidden("a", true)
-        eq(W:FindEntry("a").hidden, true)
-        W:SetEntryHidden("a", false)
-        eq(W:FindEntry("a").hidden, nil)
         W:SetEntryFavorite("c", true)
         eq(W:FindEntry("c").favorite, true)
     end)
@@ -429,16 +425,21 @@ do
         W.Export = X.Export
         W.BuildJournalMarkdown = X.BuildJournalMarkdown
         UnitName = function() return "Fistnal" end
-        W:SetEntryHidden("a", true)
+        W.Print = function() end
+        assert(W:DeleteEntry("a"), "delete")
+        eq(W:FindEntry("a"), nil, "entry gone")
+        eq(W:GetChapters()[1].key, "b", "chapter now starts at the next entry")
+        eq(W:GetChapters()[1].title, "Ashes of Quel'Thalas", "chapter summary moved to the next entry")
+        eq(W:DeleteEntry("nope"), false)
         local md, count = W:BuildJournalMarkdown(false)
         assert(md:find("## Chapter I: Ashes of Quel'Thalas", 1, true), "chapter heading")
         assert(md:find("> A chapter of beginnings.", 1, true), "chapter summary")
         assert(md:find("### Day 2: The Lynx Hunt", 1, true), "entry under chapter")
-        assert(not md:find("Arrival", 1, true), "hidden entries are not exported")
+        assert(not md:find("Arrival", 1, true), "deleted entries are gone from the export")
         local favMd, favCount = W:BuildJournalMarkdown(true)
         eq(favCount, 1)
         assert(favMd:find("Stronger", 1, true) and not favMd:find("Lynx Hunt", 1, true))
-        assert(count >= 4)
+        eq(count, 4, "b, c, d and the mood test's entry")
     end)
 end
 print(("%d Lua tests passed in total (v0.10)"):format(passed))

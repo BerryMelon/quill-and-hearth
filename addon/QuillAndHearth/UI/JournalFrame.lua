@@ -92,6 +92,38 @@ local function SmallButton(parent, text, width)
     return b
 end
 
+-- Icons that exist in every client: the yellow raid-marker star, and the red "pass" X.
+local STAR_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1"
+local DELETE_ICON = "Interface\\Buttons\\UI-GroupLoot-Pass-Up"
+
+local function IconButton(parent, texture, size)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(size, size)
+    b:SetNormalTexture(texture)
+    b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    return b
+end
+
+--- Star look: gold when favourited, faded grey when not.
+local function SetStarLit(texture, lit)
+    if not texture then return end
+    texture:SetDesaturated(not lit)
+    texture:SetAlpha(lit and 1 or 0.45)
+end
+
+StaticPopupDialogs["QUILLANDHEARTH_DELETE_ENTRY"] = {
+    text = "Delete \"%s\"?\n\nThe entry and the prompt it was written from will be lost for good. This can't be undone.",
+    button1 = DELETE or "Delete",
+    button2 = CANCEL,
+    OnAccept = function(_, data)
+        if data and data.id then QH:DeleteEntry(data.id) end
+    end,
+    showAlert = true,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+}
+
 local function Tooltip(widget, title, text)
     widget:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -138,24 +170,15 @@ function Journal:Build()
 
     local inset = f.Inset or f
 
-    -- Filters above the list (D2, D3)
+    -- Filter above the list (favourites)
     self.favFilter = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     self.favFilter:SetSize(22, 22)
     self.favFilter:SetPoint("TOPLEFT", inset, "TOPLEFT", 6, -4)
     local favText = self.favFilter:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     favText:SetPoint("LEFT", self.favFilter, "RIGHT", 0, 0)
-    favText:SetText("Favourites")
+    favText:SetText("Favourites only")
     self.favFilter:SetHitRectInsets(0, -favText:GetStringWidth() - 6, 0, 0)
     self.favFilter:SetScript("OnClick", function() self:Refresh(self.selected) end)
-
-    self.hiddenFilter = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-    self.hiddenFilter:SetSize(22, 22)
-    self.hiddenFilter:SetPoint("LEFT", favText, "RIGHT", 14, 0)
-    local hiddenText = self.hiddenFilter:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    hiddenText:SetPoint("LEFT", self.hiddenFilter, "RIGHT", 0, 0)
-    hiddenText:SetText("Show hidden")
-    self.hiddenFilter:SetHitRectInsets(0, -hiddenText:GetStringWidth() - 6, 0, 0)
-    self.hiddenFilter:SetScript("OnClick", function() self:Refresh(self.selected) end)
 
     -- Entry list (left)
     local list = CreateFrame("ScrollFrame", "QuillAndHearthJournalList", f, "UIPanelScrollFrameTemplate")
@@ -177,33 +200,29 @@ function Journal:Build()
     ApplyParchment(bg)
     self.page = page
 
-    -- Page tools (top right): edit, hide, favourite
-    self.favButton = SmallButton(page, "Favourite", 86)
-    self.favButton:SetPoint("TOPRIGHT", page, "TOPRIGHT", -36, -10)
-    self.hideButton = SmallButton(page, "Hide", 64)
-    self.hideButton:SetPoint("RIGHT", self.favButton, "LEFT", -4, 0)
+    -- Page tools (top right): edit, favourite (star), delete
+    self.deleteButton = IconButton(page, DELETE_ICON, 20)
+    self.deleteButton:SetPoint("TOPRIGHT", page, "TOPRIGHT", -38, -11)
+    self.favButton = IconButton(page, STAR_ICON, 22)
+    self.favButton:SetPoint("RIGHT", self.deleteButton, "LEFT", -8, 0)
     self.editButton = SmallButton(page, "Edit", 56)
-    self.editButton:SetPoint("RIGHT", self.hideButton, "LEFT", -4, 0)
-    self.tools = { self.editButton, self.hideButton, self.favButton }
+    self.editButton:SetPoint("RIGHT", self.favButton, "LEFT", -8, 0)
+    self.tools = { self.editButton, self.favButton, self.deleteButton }
 
     self.favButton:SetScript("OnClick", function()
         local e = self.selectedEntry
         if e then QH:SetEntryFavorite(e.id, not e.favorite) end
     end)
-    self.hideButton:SetScript("OnClick", function()
+    self.deleteButton:SetScript("OnClick", function()
         local e = self.selectedEntry
-        if not e then return end
-        QH:SetEntryHidden(e.id, not e.hidden)
-        if not e.hidden then
-            QH:Print(('"%s" is hidden. Tick "Show hidden" to find it again.'):format(e.title or "Untitled"))
-        end
+        if e then StaticPopup_Show("QUILLANDHEARTH_DELETE_ENTRY", e.title or "Untitled", nil, { id = e.id }) end
     end)
     self.editButton:SetScript("OnClick", function()
         if self.selectedEntry then QH.EditDialog:Open(self.selectedEntry) end
     end)
-    Tooltip(self.favButton, "Favourite", "Mark this entry as a favourite. Use the Favourites filter to see only those.")
-    Tooltip(self.hideButton, function() return self.selectedEntry and self.selectedEntry.hidden and "Unhide" or "Hide" end,
-        "Hidden entries leave the list and the export, but are never deleted.")
+    Tooltip(self.favButton, function() return self.selectedEntry and self.selectedEntry.favorite and "Unfavourite" or "Favourite" end,
+        "Favourite entries get a star in the list. Use \"Favourites only\" to see just those.")
+    Tooltip(self.deleteButton, "Delete entry", "Delete this entry for good, including the prompt it was written from.")
     Tooltip(self.editButton, "Edit", "Change the title or the text by hand.")
 
     -- Text
@@ -355,7 +374,7 @@ function Journal:EntryRow(i)
     row.star = row:CreateTexture(nil, "OVERLAY")
     row.star:SetSize(14, 14)
     row.star:SetPoint("TOPRIGHT", row, "TOPRIGHT", -6, -7)
-    if AtlasExists("PetJournal-FavoritesIcon") then row.star:SetAtlas("PetJournal-FavoritesIcon") else row.star:SetTexture("Interface\\Common\\ReputationStar") end
+    row.star:SetTexture(STAR_ICON)
 
     row:SetScript("OnClick", function() self:Select(row.key) end)
     self.entryRows[i] = row
@@ -385,15 +404,13 @@ function Journal:HeaderRow(i)
     return row
 end
 
-local function Visible(e, favOnly, showHidden)
-    if e.hidden and not showHidden then return false end
+local function Visible(e, favOnly)
     if favOnly and not e.favorite then return false end
     return true
 end
 
 function Journal:RefreshList()
     local favOnly = self.favFilter:GetChecked()
-    local showHidden = self.hiddenFilter:GetChecked()
     local seenBefore = self.seenBefore or 0
     local y, ei, hi = 0, 0, 0
 
@@ -428,7 +445,7 @@ function Journal:RefreshList()
         local shown = {}
         for n = #ch.entries, 1, -1 do
             local e = ch.entries[n]
-            if Visible(e, favOnly, showHidden) then table.insert(shown, e) end
+            if Visible(e, favOnly) then table.insert(shown, e) end
         end
         if #shown > 0 or not favOnly then
             hi = hi + 1
@@ -446,7 +463,7 @@ function Journal:RefreshList()
             local isNew = (e.t or 0) > seenBefore
             placeEntryRow(e.id, e.title or "Untitled",
                 DayLabel(e.day, e.dayEnd) .. (e.zone and ("  |cff999999" .. e.zone .. "|r") or ""),
-                icon, isNew and "NEW" or nil, e.favorite == true, e.hidden)
+                icon, isNew and "NEW" or nil, e.favorite == true)
         end
     end
 
@@ -573,7 +590,6 @@ function Journal:ShowEntryPage(e)
     if e.source == "template" then table.insert(notes, "written plainly") end
     if e.rewrittenAt then table.insert(notes, "rewritten") end
     if e.editedAt then table.insert(notes, "edited") end
-    if e.hidden then table.insert(notes, "hidden") end
     local place = PlaceText(e.restKind, e.zone, e.subzone)
     if #notes > 0 then place = place .. "  |cff8a7a6a(" .. table.concat(notes, ", ") .. ")|r" end
     self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, e.body, {
@@ -581,8 +597,7 @@ function Journal:ShowEntryPage(e)
         primary = e.prompt and { "Rewrite with AI", function() QH.Bridge:Show(QH.Bridge.RewriteJob(e)) end,
             { "Rewrite with AI", "Get a new version of this entry from any AI chat, using the prompt it was written from." } } or nil,
     })
-    self.favButton:SetText(e.favorite and "Unfavourite" or "Favourite")
-    self.hideButton:SetText(e.hidden and "Unhide" or "Hide")
+    SetStarLit(self.favButton:GetNormalTexture(), e.favorite)
 end
 
 function Journal:ShowChapterPage(ch)
@@ -596,9 +611,7 @@ function Journal:ShowChapterPage(ch)
     end
     table.insert(lines, "|cff5a3a1aIn this chapter:|r")
     for _, e in ipairs(ch.entries) do
-        if not e.hidden then
-            table.insert(lines, ("- %s: %s"):format(DayLabel(e.day, e.dayEnd), e.title or "Untitled"))
-        end
+        table.insert(lines, ("- %s: %s"):format(DayLabel(e.day, e.dayEnd), e.title or "Untitled"))
     end
     local levels = ch.minLevel and (ch.minLevel == ch.maxLevel and ("level %d"):format(ch.minLevel)
         or ("levels %d-%d"):format(ch.minLevel, ch.maxLevel)) or nil
@@ -679,11 +692,7 @@ function Journal:Refresh(target)
     elseif self.pending and (not target or target == PENDING) then
         self:Select(PENDING)
     elseif #entries > 0 then
-        local newest
-        for n = #entries, 1, -1 do
-            if not entries[n].hidden then newest = entries[n]; break end
-        end
-        self:Select(newest and newest.id or nil)
+        self:Select(entries[#entries].id)
     else
         self:Select(nil)
     end
