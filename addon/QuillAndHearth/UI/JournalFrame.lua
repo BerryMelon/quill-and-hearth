@@ -92,7 +92,7 @@ local function SmallButton(parent, text, width)
     return b
 end
 
--- Icons that exist in every client: the yellow raid-marker star, and the red "pass" X.
+-- Icons that exist in every client: the yellow raid-marker star, and a muted clear/delete mark.
 local STAR_ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1"
 local DELETE_ICON = "Interface\\Buttons\\UI-GroupLoot-Pass-Up"
 
@@ -101,6 +101,26 @@ local function IconButton(parent, texture, size)
     b:SetSize(size, size)
     b:SetNormalTexture(texture)
     b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    return b
+end
+
+--- Quiet, desaturated ink-grey delete button so it doesn't draw the eye on the page.
+local function MutedDeleteButton(parent, size)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(size, size)
+    local tex = b:CreateTexture(nil, "ARTWORK")
+    tex:SetAllPoints()
+    if AtlasExists("common-search-clearbutton") then
+        tex:SetAtlas("common-search-clearbutton")
+    else
+        tex:SetTexture(DELETE_ICON)
+    end
+    tex:SetDesaturated(true)
+    tex:SetVertexColor(0.38, 0.28, 0.18)
+    tex:SetAlpha(0.35)
+    b:SetNormalTexture(tex)
+    b:HookScript("OnEnter", function() tex:SetAlpha(0.75) end)
+    b:HookScript("OnLeave", function() tex:SetAlpha(0.35) end)
     return b
 end
 
@@ -125,14 +145,14 @@ StaticPopupDialogs["QUILLANDHEARTH_DELETE_ENTRY"] = {
 }
 
 local function Tooltip(widget, title, text)
-    widget:SetScript("OnEnter", function(self)
+    widget:HookScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText(type(title) == "function" and title() or title)
         local body = type(text) == "function" and text() or text
         if body then GameTooltip:AddLine(body, 1, 1, 1, true) end
         GameTooltip:Show()
     end)
-    widget:SetScript("OnLeave", GameTooltip_Hide)
+    widget:HookScript("OnLeave", GameTooltip_Hide)
 end
 
 function Journal:Build()
@@ -201,8 +221,8 @@ function Journal:Build()
     self.page = page
 
     -- Page tools (top right): edit, favourite (star), delete
-    self.deleteButton = IconButton(page, DELETE_ICON, 20)
-    self.deleteButton:SetPoint("TOPRIGHT", page, "TOPRIGHT", -38, -11)
+    self.deleteButton = MutedDeleteButton(page, 18)
+    self.deleteButton:SetPoint("TOPRIGHT", page, "TOPRIGHT", -38, -12)
     self.favButton = IconButton(page, STAR_ICON, 22)
     self.favButton:SetPoint("RIGHT", self.deleteButton, "LEFT", -8, 0)
     self.editButton = SmallButton(page, "Edit", 56)
