@@ -23,7 +23,8 @@ The companion overwrites `addon/QuillAndHearth/Generated/Entries.lua`. To keep t
 ### In-game commands
 | Command | What it does |
 |---|---|
-| `/quill` | open your journal (also `/quill journal` or the minimap addon menu) |
+| `/quill` | open your journal (also the minimap book button: left-click opens the journal, right-click opens a menu to rest or set up your character) |
+| `/quill minimap` | show or hide the minimap button |
 | `/quill help` | list commands |
 | `/quill setup` | set up (or redo) your character: Total RP 3 import or the setup wizard |
 | `/quill profile` | show what the journal knows about your character |

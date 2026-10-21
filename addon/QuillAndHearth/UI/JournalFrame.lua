@@ -29,6 +29,19 @@ function QH:CompanionHasRun()
     return gen ~= nil and gen.generatedAt ~= nil
 end
 
+-- The companion rewrites Entries.lua every minute, so its timestamp doubles as a heartbeat.
+-- (Entries.lua is read when the UI loads, so this reflects the moment of the last login/reload.)
+local HEARTBEAT_STALE_SECONDS = 180
+
+--- "running", "stopped" (has run before, but not recently) or "never".
+function QH:GetCompanionStatus()
+    local gen = QuillAndHearth_Generated
+    if not (gen and gen.generatedAt) then return "never" end
+    local loadedAt = QH.loadedAt or GetServerTime()
+    if math.abs(loadedAt - gen.generatedAt) <= HEARTBEAT_STALE_SECONDS then return "running" end
+    return "stopped"
+end
+
 --- unwrittenRests: rests the companion hasn't written up yet ("ink drying").
 --- momentsSinceRest: events recorded after the latest rest.
 function QH:GetPendingInfo()
@@ -281,8 +294,11 @@ end
 ---------------------------------------------------------------------------
 function Journal:RefreshStatus()
     local unwritten, moments = QH:GetPendingInfo()
+    local companion = QH:GetCompanionStatus()
     local text
-    if unwritten > 0 then
+    if companion ~= "running" and (unwritten > 0 or companion == "never") then
+        text = "|cffff7f3fThe companion app isn't running.|r Start it so your journal can be written."
+    elseif unwritten > 0 then
         text = ("|cffffd100The ink is drying|r on %d %s. Reload once the companion has written %s.")
             :format(unwritten, unwritten == 1 and "entry" or "entries", unwritten == 1 and "it" or "them")
     elseif moments > 0 then
@@ -327,50 +343,3 @@ end
 
 QH:RegisterCommand("journal", "open your journal (also just /quill)", function() Journal:Toggle() end)
 
----------------------------------------------------------------------------
--- Addon compartment (minimap addon menu)
----------------------------------------------------------------------------
-function QuillAndHearth_OnCompartmentClick()
-    Journal:Toggle()
-end
-
-function QuillAndHearth_OnCompartmentEnter(_, menuButton)
-    GameTooltip:SetOwner(type(menuButton) == "table" and menuButton or UIParent, "ANCHOR_LEFT")
-    GameTooltip:SetText("Quill & Hearth")
-    if QH.char then
-        local unwritten, moments = QH:GetPendingInfo()
-        GameTooltip:AddLine(("%d journal entries"):format(#QH:GetEntries()), 1, 1, 1)
-        if unwritten > 0 then GameTooltip:AddLine("The ink is drying on your latest entry.", 1, 0.82, 0) end
-        if moments > 0 then GameTooltip:AddLine(("%d moments since your last rest"):format(moments), 0.8, 0.8, 0.8) end
-    end
-    GameTooltip:AddLine("Click to open your journal.", 0.5, 0.5, 0.5)
-    GameTooltip:Show()
-end
-
-function QuillAndHearth_OnCompartmentLeave()
-    GameTooltip:Hide()
-end
-
----------------------------------------------------------------------------
--- Login notice
----------------------------------------------------------------------------
-QH:Listen("READY", function()
-    C_Timer.After(6, function()
-        local entries = QH:GetEntries()
-        local lastSeen = QH.char.state.lastSeenEntryT or 0
-        local new = 0
-        for _, e in ipairs(entries) do
-            if (e.t or 0) > lastSeen then new = new + 1 end
-        end
-        local unwritten = QH:GetPendingInfo()
-        if new > 0 then
-            QH:Print(("Your journal has |cffffffff%d new %s|r. Type |cffffd100/quill|r to read."):format(new, new == 1 and "entry" or "entries"))
-        elseif unwritten > 0 then
-            if QH:CompanionHasRun() then
-                QH:Print("The ink is still drying on your latest entry. Keep the companion running, then |cffffd100/reload|r.")
-            else
-                QH:Print("Start the companion app so your journal can be written.")
-            end
-        end
-    end)
-end)

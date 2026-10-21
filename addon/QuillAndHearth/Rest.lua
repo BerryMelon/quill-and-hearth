@@ -163,7 +163,8 @@ StaticPopupDialogs["QUILLANDHEARTH_REST"] = {
     hideOnEscape = true,
 }
 
-QH:RegisterCommand("rest", "rest and write in your journal (inn, city or campfire)", function()
+--- Ask to rest and write (used by /quill rest and the minimap menu).
+function QH:RequestRest()
     if InCombatLockdown() then
         QH:Print("You can't rest while in combat.")
         return
@@ -173,6 +174,10 @@ QH:RegisterCommand("rest", "rest and write in your journal (inn, city or campfir
         return
     end
     StaticPopup_Show("QUILLANDHEARTH_REST")
+end
+
+QH:RegisterCommand("rest", "rest and write in your journal (inn, city or campfire)", function()
+    QH:RequestRest()
 end)
 
 QH:RegisterCommand("restcheck", "debug: show rest state and your current buffs", function()
