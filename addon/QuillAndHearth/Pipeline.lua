@@ -414,7 +414,7 @@ Rules:
 - Only write what actually happened. A task marked "NOT finished yet" was only accepted: write about the request or the plan, never as if it were done. Do not invent fights, journeys or results.
 - Retell quest story text in the character's own words; never copy it verbatim.
 - Companions may be named with their class as their calling, but invent nothing about them.
-- About 120-350 words. No date line.]]
+- Length follows how much happened: about 150 words for a quiet night, up to about 1000 words when many things happened. Never pad a quiet night. No date line.]]
 
 local FORMAT = [[Reply in EXACTLY this format, with nothing before or after it:
 TITLE: <a short evocative title, 2-6 words>
