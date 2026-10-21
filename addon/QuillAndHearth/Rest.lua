@@ -148,7 +148,7 @@ end)
 -- Manual rest: /quill rest
 ---------------------------------------------------------------------------
 StaticPopupDialogs["QUILLANDHEARTH_REST"] = {
-    text = "Rest a while and write in your journal?\n\n|cff999999(This reloads your UI.)|r",
+    text = "Rest a while and write in your journal?\n\n|cff999999(This reloads your UI. The companion app then writes your entry; open your journal in a moment.)|r",
     button1 = "Write",
     button2 = CANCEL,
     OnAccept = function()

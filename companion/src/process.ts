@@ -3,7 +3,7 @@ import type { JournalEntry, QHCharacter, QHSavedVariables } from "./types.js";
 import { findSittings } from "./pipeline/segment.js";
 import { buildDigest } from "./pipeline/digest.js";
 import { generateBrief, profileHash } from "./llm/brief.js";
-import { writeEntry } from "./llm/write.js";
+import { normalizeBody, writeEntry } from "./llm/write.js";
 import type { LLM } from "./llm/client.js";
 import type { CharacterState } from "./state/store.js";
 
@@ -62,7 +62,7 @@ export async function processCharacter(
         day: digest.startDay,
         dayEnd: digest.endDay,
         title: result.title.trim(),
-        body: result.body.trim(),
+        body: normalizeBody(result.body),
         zone: sitting.rest.zone,
         subzone: sitting.rest.subzone,
         restKind: sitting.rest.kind,

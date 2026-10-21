@@ -14,6 +14,16 @@ export type StoryMemory = z.infer<typeof MemorySchema>;
 
 export const EMPTY_MEMORY: StoryMemory = { summary: "", people: [], places: [], openThreads: [] };
 
+/** Models sometimes double-escape newlines ("\\n" as text). Turn those into real paragraph breaks. */
+export function normalizeBody(body: string): string {
+  return body
+    .replace(/\\r\\n|\\n|\\r/g, "\n")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export const EntrySchema = z.object({
   title: z.string().describe("A short evocative title for this journal entry (2-6 words)"),
   body: z.string().describe("The journal entry itself. Paragraphs separated by a blank line."),

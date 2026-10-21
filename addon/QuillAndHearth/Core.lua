@@ -96,6 +96,8 @@ SlashCmdList.QUILLANDHEARTH = function(msg)
     local fn = QH.commands[cmd]
     if fn then
         fn(rest)
+    elseif cmd == "" and QH.commands.journal then
+        QH.commands.journal("")
     else
         ShowHelp()
     end

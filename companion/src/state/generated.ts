@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CharacterState } from "./store.js";
 import { toLua, writeFileAtomic } from "../savedvars/serialize.js";
+import { normalizeBody } from "../llm/write.js";
 
 export function loadAllStates(dataDir: string): CharacterState[] {
   if (!existsSync(dataDir)) return [];
@@ -21,7 +22,7 @@ export function renderGenerated(states: CharacterState[], now = Math.floor(Date.
         day: e.day,
         dayEnd: e.dayEnd !== e.day ? e.dayEnd : undefined,
         title: e.title,
-        body: e.body,
+        body: normalizeBody(e.body),
         zone: e.zone,
         subzone: e.subzone,
         restKind: e.restKind,

@@ -18,10 +18,13 @@ npm install
 npm run lua:check   # syntax-check all addon Lua files
 ```
 
+The companion overwrites `addon/QuillAndHearth/Generated/Entries.lua`. To keep that out of commits, run once: `git update-index --skip-worktree addon/QuillAndHearth/Generated/Entries.lua`.
+
 ### In-game commands
 | Command | What it does |
 |---|---|
-| `/quill` | help |
+| `/quill` | open your journal (also `/quill journal` or the minimap addon menu) |
+| `/quill help` | list commands |
 | `/quill setup` | set up (or redo) your character: Total RP 3 import or the setup wizard |
 | `/quill profile` | show what the journal knows about your character |
 | `/quill rest` | rest and write in your journal (inn, city or campfire; reloads UI) |

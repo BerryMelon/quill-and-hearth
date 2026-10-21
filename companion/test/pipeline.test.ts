@@ -4,6 +4,13 @@ import { findSittings } from "../src/pipeline/segment.js";
 import { dateSitting, VOYAGE_DAYS } from "../src/pipeline/calendar.js";
 import { classify, matchHooks, scoreEvent } from "../src/pipeline/score.js";
 import { buildDigest } from "../src/pipeline/digest.js";
+import { normalizeBody } from "../src/llm/write.js";
+
+describe("normalizeBody", () => {
+  it("turns double-escaped newlines into paragraph breaks", () => {
+    expect(normalizeBody("One.\\n\\nTwo.\\nThree.  \n\n\n\nFour.")).toBe("One.\n\nTwo.\nThree.\n\nFour.");
+  });
+});
 
 let seq = 0;
 let clock = 1_800_000_000;
