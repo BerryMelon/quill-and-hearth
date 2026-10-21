@@ -32,7 +32,8 @@
 2. Pending in-game tests: the TRP3 import, and the campfire fix (paste the `/quill restcheck` buff list).
 3. Phase 5 polish: chapters, entry rewrite/hide, UI redesign after v1 feedback.
 
-## Built: v0.5.0 (no companion needed: copy-paste bridge), not yet tested in game
+## Done: v0.5.0 (no companion needed: copy-paste bridge). Tested on retail 2026-10-21: the copy-paste flow works well and the UI looks good
+- The addon also loads on retail (Interface `120105, 16001`), linked into `_retail_\Interface\AddOns` for testing while the Forever beta is down.
 - Decision (2026-10-21): tiered approach (see NO_COMPANION_OPTIONS.md). 1) The copy-paste bridge is now the default (done). 2) Next: an in-game template writer (C1) so entries work with no AI at all, later grown into a pre-written snippet library (C2). 3) The companion is optional.
 - `Pipeline.lua`: Lua port of sittings/calendar/scoring/digest/prompt plus ParseReply (tolerant of markdown, missing markers, WoW pipes). Several unwritten nights merge into one entry. Hooks come from the profile's fear text.
 - `Writer.lua`: in-game entries in `char.journal` (entries, processedThrough, nextDay, memory); GetEntries merges companion and in-game entries; pruning uses the max of both processedThrough values.
