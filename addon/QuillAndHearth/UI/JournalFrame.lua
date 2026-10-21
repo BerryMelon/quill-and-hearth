@@ -118,7 +118,6 @@ function Journal:Build()
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     if f.SetPortraitToAsset then f:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Book_09") end
     table.insert(UISpecialFrames, "QuillAndHearthJournal")
-    f:SetScript("OnHide", function() self:StopReading() end)
     f:Hide()
     self.frame = f
 
@@ -178,16 +177,14 @@ function Journal:Build()
     ApplyParchment(bg)
     self.page = page
 
-    -- Page tools (top right): read aloud, edit, hide, favourite
+    -- Page tools (top right): edit, hide, favourite
     self.favButton = SmallButton(page, "Favourite", 86)
     self.favButton:SetPoint("TOPRIGHT", page, "TOPRIGHT", -36, -10)
     self.hideButton = SmallButton(page, "Hide", 64)
     self.hideButton:SetPoint("RIGHT", self.favButton, "LEFT", -4, 0)
     self.editButton = SmallButton(page, "Edit", 56)
     self.editButton:SetPoint("RIGHT", self.hideButton, "LEFT", -4, 0)
-    self.readButton = SmallButton(page, "Read aloud", 92)
-    self.readButton:SetPoint("RIGHT", self.editButton, "LEFT", -4, 0)
-    self.tools = { self.readButton, self.editButton, self.hideButton, self.favButton }
+    self.tools = { self.editButton, self.hideButton, self.favButton }
 
     self.favButton:SetScript("OnClick", function()
         local e = self.selectedEntry
@@ -204,12 +201,10 @@ function Journal:Build()
     self.editButton:SetScript("OnClick", function()
         if self.selectedEntry then QH.EditDialog:Open(self.selectedEntry) end
     end)
-    self.readButton:SetScript("OnClick", function() self:ToggleReading() end)
     Tooltip(self.favButton, "Favourite", "Mark this entry as a favourite. Use the Favourites filter to see only those.")
     Tooltip(self.hideButton, function() return self.selectedEntry and self.selectedEntry.hidden and "Unhide" or "Hide" end,
         "Hidden entries leave the list and the export, but are never deleted.")
     Tooltip(self.editButton, "Edit", "Change the title or the text by hand.")
-    Tooltip(self.readButton, "Read aloud", "Your computer's text-to-speech voice reads this entry.")
 
     -- Text
     local scroll = CreateFrame("ScrollFrame", "QuillAndHearthJournalPage", page, "UIPanelScrollFrameTemplate")
@@ -324,14 +319,6 @@ function Journal:Build()
         if self.frame:IsShown() and (key == "textSize" or key == "moodPrompt" or key == "length") then
             self:Refresh(self.selected)
         end
-    end)
-
-    -- Read aloud finishes
-    local ttsWatcher = CreateFrame("Frame")
-    pcall(ttsWatcher.RegisterEvent, ttsWatcher, "VOICE_CHAT_TTS_PLAYBACK_FINISHED")
-    ttsWatcher:SetScript("OnEvent", function()
-        self.reading = false
-        self.readButton:SetText("Read aloud")
     end)
 end
 
@@ -501,7 +488,6 @@ end
 --- read/edit/hide/favourite buttons; mood: show the mood row.
 function Journal:ShowPage(day, title, place, body, opts)
     opts = opts or {}
-    self:StopReading()
     self:ApplyFonts()
     self.dayText:SetText(day or "")
     self.titleText:SetText(title or "")
@@ -601,7 +587,6 @@ function Journal:ShowEntryPage(e)
     })
     self.favButton:SetText(e.favorite and "Unfavourite" or "Favourite")
     self.hideButton:SetText(e.hidden and "Unhide" or "Hide")
-    self.readButton:SetShown(C_VoiceChat ~= nil and C_VoiceChat.SpeakText ~= nil)
 end
 
 function Journal:ShowChapterPage(ch)
@@ -690,33 +675,6 @@ function Journal:Select(key)
         self:ShowEmptyPage()
     end
     self:RefreshList()
-end
-
----------------------------------------------------------------------------
--- A5: read aloud
----------------------------------------------------------------------------
-function Journal:StopReading()
-    if self.reading and C_VoiceChat and C_VoiceChat.StopSpeakingText then C_VoiceChat.StopSpeakingText() end
-    self.reading = false
-    if self.readButton then self.readButton:SetText("Read aloud") end
-end
-
-function Journal:ToggleReading()
-    if self.reading then return self:StopReading() end
-    local e = self.selectedEntry
-    if not (e and C_VoiceChat and C_VoiceChat.SpeakText) then return end
-    local voices = C_VoiceChat.GetTtsVoices and C_VoiceChat.GetTtsVoices() or {}
-    local voice = voices[1]
-    if not voice then
-        QH:Print("No text-to-speech voice is available on this computer.")
-        return
-    end
-    local text = ((e.title or "") .. ".\n\n" .. (e.body or "")):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-    local ok = pcall(C_VoiceChat.SpeakText, voice.voiceID, text, QH:GetSetting("ttsRate") or 0, 100, false)
-    if ok then
-        self.reading = true
-        self.readButton:SetText("Stop")
-    end
 end
 
 ---------------------------------------------------------------------------

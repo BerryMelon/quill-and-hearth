@@ -283,6 +283,7 @@ function P.BuildDigest(sittings, startDay, hooks)
                     seq = e.seq,
                     type = e.type,
                     first = e.first,
+                    questID = e.questID,
                     day = day,
                     importance = importance,
                     place = PlaceOf(e),
@@ -364,6 +365,22 @@ function P.BuildDigest(sittings, startDay, hooks)
     for reason in pairs(reflections) do table.insert(reflectionList, reason) end
     table.sort(reflectionList)
 
+    -- Abilities used, merged over all nights (each rest carries the counts since the previous one).
+    local abilityCounts, abilityOrder = {}, {}
+    for _, sitting in ipairs(sittings) do
+        for _, a in ipairs(sitting.rest.abilities or {}) do
+            local name, n = a:match("^(.-) %((%d+)%)$")
+            name, n = name or a, tonumber(n) or 1
+            if not abilityCounts[name] then table.insert(abilityOrder, name) end
+            abilityCounts[name] = (abilityCounts[name] or 0) + n
+        end
+    end
+    table.sort(abilityOrder, function(a, b) return abilityCounts[a] > abilityCounts[b] end)
+    local abilities = {}
+    for i = 1, math.min(6, #abilityOrder) do
+        abilities[i] = ("%s (%d)"):format(abilityOrder[i], abilityCounts[abilityOrder[i]])
+    end
+
     local lastRest = sittings[#sittings].rest
     return {
         startDay = startDay,
@@ -372,6 +389,8 @@ function P.BuildDigest(sittings, startDay, hooks)
         restPlace = PlaceOf(lastRest),
         restKind = lastRest.kind,
         lastRest = lastRest,
+        level = lastRest.level,
+        abilities = abilities,
         timeOfDay = P.TimeOfDay(lastRest.hour),
         threads = orderedThreads,
         journey = journey,
@@ -406,6 +425,9 @@ function P.DescribeCharacter(profile, meta)
     local race = profile and profile.trp3 and profile.trp3.race or meta and meta.race
     add("Race", race and (race .. (gender and (" (" .. gender .. ")") or "")))
     add("Class / calling", profile and profile.class or meta and meta.class)
+    if meta and meta.class and profile and profile.class and profile.class ~= meta.class then
+        add("Fights as (game class)", meta.class)
+    end
     add("Faction", meta and meta.faction)
 
     local t = profile and profile.traits
@@ -464,6 +486,8 @@ Rules:
 - Only write what actually happened. A task marked "NOT finished yet" was only accepted: write about the request or the plan, never as if it were done. Do not invent fights, journeys or results.
 - Retell quest story text in the character's own words; never copy it verbatim.
 - Companions may be named with their class as their calling, but invent nothing about them. People who asked for help ("Asked by") may be named.
+- Respect the character's class and level. Describe fights and feats the way their class really fights, using the abilities listed under "Abilities used most" when given (a shaman calls lightning from the elements, a rogue strikes from the shadows, a priest channels the Light or the Shadow). Keep their power appropriate to their level: a young adventurer uses modest, early abilities, never the feats of a seasoned hero.
+- If you can browse the web, you may look up the quests (by name or quest id), people, creatures and places on https://warcraft.wiki.gg/ for accurate lore details. Never contradict what is given here; if something isn't on the wiki (new content), rely on the text given.
 - %s No date line.]]
 
 P.LENGTH_RULES = {
@@ -506,6 +530,13 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
     if opts.mood then
         line(("The character's mood tonight: %s. Let it colour the whole entry."):format(opts.mood))
     end
+    if digest.level then
+        line(("The character is level %d%s."):format(digest.level,
+            meta and meta.class and (" (" .. meta.class .. ")") or ""))
+    end
+    if digest.abilities and #digest.abilities > 0 then
+        line("Abilities used most since the last entry (times used): " .. table.concat(digest.abilities, ", "))
+    end
     if digest.reflections and #digest.reflections > 0 then
         line(("A milestone (%s): end the entry with a short, honest look back at who the character was when the journey began and who they are now."):format(table.concat(digest.reflections, "; ")))
     end
@@ -520,8 +551,8 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
         for _, thread in ipairs(digest.threads) do
             line("* " .. thread.name)
             for _, m in ipairs(thread.moments) do
-                line(("  - [%s] Day %d, %s: %s%s"):format(m.importance, m.day, m.place, m.kind,
-                    m.title and (' "' .. m.title .. '"') or ""))
+                line(("  - [%s] Day %d, %s: %s%s%s"):format(m.importance, m.day, m.place, m.kind,
+                    m.title and (' "' .. m.title .. '"') or "", m.questID and (" (quest id " .. m.questID .. ")") or ""))
                 if m.touched and #m.touched > 0 then line("    TOUCHES THE CHARACTER: " .. table.concat(m.touched, ", ")) end
                 if m.giver then line("    Asked by: " .. m.giver) end
                 if m.companions then line("    Companions: " .. table.concat(m.companions, ", ")) end

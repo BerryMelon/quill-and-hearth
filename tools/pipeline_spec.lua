@@ -296,7 +296,8 @@ local function RichLog()
     ev({ type = "camp" })
     ev({ type = "death", first = true })
     ev({ type = "level", level = 10 })
-    ev({ type = "rest", kind = "campfire", zone = "Eversong Woods", subzone = "Fairbreeze Village", hour = 23 })
+    ev({ type = "rest", kind = "campfire", zone = "Eversong Woods", subzone = "Fairbreeze Village", hour = 23, level = 10,
+        abilities = { "Lightning Bolt (42)", "Earth Shock (18)", "Healing Wave (5)" } })
     return events
 end
 
@@ -311,6 +312,11 @@ test("Prompt carries mood, time of day, reflections, givers and the length setti
     assert(prompt:find("Asked by: Magister Landra", 1, true), "quest giver")
     assert(prompt:find("Keep it brief", 1, true), "short length rule")
     assert(not prompt:find("%%s"), "no leftover format markers")
+    assert(prompt:find("Respect the character's class and level", 1, true), "class/level rule")
+    assert(prompt:find("warcraft.wiki.gg", 1, true), "wiki hint")
+    assert(prompt:find("The character is level 10", 1, true), "level line")
+    assert(prompt:find("Abilities used most since the last entry (times used): Lightning Bolt (42), Earth Shock (18), Healing Wave (5)", 1, true), "abilities")
+    assert(prompt:find("(quest id 7)", 1, true), "quest id")
     for _, needle in ipairs({ '"Sunstrider Blade"', '"Silvermoon City"', "Tailoring to 75", '"Explore Eversong Woods"', "campfire" }) do
         assert(prompt:find(needle, 1, true), "missing " .. needle)
     end
@@ -449,6 +455,6 @@ PARSE = P.ParseReply
 -- Live check uses the v0.10 rich night (mood, time of day, milestone, quest giver).
 do
     local d = P.BuildDigest(P.FindSittings(RichLog(), 0), 1, {})
-    SAMPLE_PROMPT = P.BuildPrompt({ name = "Fistnal Stonehand", class = "Paladin", traits = { temperament = "Stoic", voice = "Plain" } },
-        { name = "Fistnal", race = "Blood Elf", sex = 2, faction = "Horde" }, "", d, {}, { mood = "Weary", length = "normal" })
+    SAMPLE_PROMPT = P.BuildPrompt({ name = "Grok Stormcaller", class = "Shaman", traits = { temperament = "Stoic", voice = "Plain" } },
+        { name = "Grok", race = "Orc", class = "Shaman", sex = 2, faction = "Horde" }, "", d, {}, { mood = "Weary", length = "short" })
 end

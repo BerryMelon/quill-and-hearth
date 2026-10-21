@@ -246,10 +246,35 @@ end)
 QH:On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)
     if unit ~= "player" then return end
     spellID = Safe(spellID)
-    if spellID and HEARTHSTONE_SPELLS[spellID] then
+    if not spellID then return end
+    if HEARTHSTONE_SPELLS[spellID] then
         QH:Push("hearth", { home = GetBindLocation() })
+        return
+    end
+    -- Count the abilities the character actually uses, so entries describe their real fighting
+    -- style (a shaman's lightning, a rogue's daggers). The player's own casts are never secret.
+    local name = C_Spell and C_Spell.GetSpellName and Safe(C_Spell.GetSpellName(spellID))
+    local c = QH.char
+    if name and c then
+        c.state.spellCounts = c.state.spellCounts or {}
+        c.state.spellCounts[name] = (c.state.spellCounts[name] or 0) + 1
     end
 end)
+
+--- The most used abilities since the last rest, e.g. { "Lightning Bolt (42)", ... }, and reset.
+function QH:TakeAbilitySummary(max)
+    local counts = self.char and self.char.state.spellCounts
+    if not counts then return nil end
+    local list = {}
+    for name, n in pairs(counts) do table.insert(list, { name = name, n = n }) end
+    table.sort(list, function(a, b) return a.n > b.n end)
+    local out = {}
+    for i = 1, math.min(max or 6, #list) do
+        table.insert(out, ("%s (%d)"):format(list[i].name, list[i].n))
+    end
+    self.char.state.spellCounts = nil
+    return #out > 0 and out or nil
+end
 
 QH:On("HEARTHSTONE_BOUND", function()
     QH:Push("bind", { home = GetBindLocation() })

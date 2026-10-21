@@ -126,7 +126,8 @@ function QH:PushRest(kind, how)
         return -- nothing new happened since the last rest
     end
     local hour, minute = GetGameTime()
-    self:Push("rest", { kind = kind, how = how, home = GetBindLocation(), hour = hour, minute = minute })
+    self:Push("rest", { kind = kind, how = how, home = GetBindLocation(), hour = hour, minute = minute,
+        abilities = self:TakeAbilitySummary(6) })
 end
 
 ---------------------------------------------------------------------------

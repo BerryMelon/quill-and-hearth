@@ -57,11 +57,12 @@ local function CreateTextDialog(name, title, width, height)
     scroll:SetScrollChild(box)
     scroll:SetScript("OnSizeChanged", function(_, width) box:SetWidth(width) end)
 
-    -- Clicking anywhere in the text area focuses the box.
-    local clickCatcher = CreateFrame("Button", nil, f)
-    clickCatcher:SetAllPoints(scroll)
-    clickCatcher:SetFrameLevel(scroll:GetFrameLevel() - 1)
-    clickCatcher:SetScript("OnClick", function() box:SetFocus() end)
+    -- Clicking anywhere in the text area (even below a short or empty text) focuses the box.
+    -- The scroll frame itself takes the click; the box is its child, so clicks on text still reach the box.
+    scroll:EnableMouse(true)
+    scroll:SetScript("OnMouseDown", function()
+        box:SetFocus()
+    end)
 
     f.box = box
     f.scroll = scroll
@@ -155,10 +156,11 @@ local function CreateBox(parent, name)
     scroll:SetScrollChild(box)
     scroll:SetScript("OnSizeChanged", function(_, width) box:SetWidth(width) end)
 
-    local clickCatcher = CreateFrame("Button", nil, parent)
-    clickCatcher:SetAllPoints(scroll)
-    clickCatcher:SetFrameLevel(scroll:GetFrameLevel() - 1)
-    clickCatcher:SetScript("OnClick", function() box:SetFocus() end)
+    -- Clicking anywhere in the box area (even when it's empty) focuses it.
+    scroll:EnableMouse(true)
+    scroll:SetScript("OnMouseDown", function()
+        box:SetFocus()
+    end)
     return scroll, box
 end
 

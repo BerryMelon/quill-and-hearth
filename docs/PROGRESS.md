@@ -2,7 +2,13 @@
 
 > **2026-10-21: the companion app was removed (v0.9.0).** Copy-paste with any AI chat plus the in-game template writer cover everything, with no installs, no API keys and no privacy concerns. Flonsus's 2 companion-written entries were migrated into his saved journal (backup: `SavedVariables\QuillAndHearth.lua.before-companion-removal.bak`; the companion's data was copied to `scratch\quill-and-hearth-companion-backup`). The companion code is still in git history (last commit with it: `2509049`). Sections below that mention the companion are historical.
 
-## Built: v0.10.0 (improvement batch), not yet tested in game
+## v0.10.1 (testing feedback on the Forever stress test, 2026-10-21)
+- Text boxes: clicking anywhere in an empty box now focuses it (the scroll frame takes the click; the old click catcher sat behind it).
+- Read aloud removed (TTS voices don't fit characters).
+- Prompt: respect class and level (class-true abilities, level-appropriate power); the character's level and game class in the prompt; **abilities used most** since the last rest (player's own casts, counted via UNIT_SPELLCAST_SUCCEEDED, stored on the rest event); quest ids; and an optional lookup hint for https://warcraft.wiki.gg/ (rely on the given text for new Forever content).
+- Live check (level 10 orc shaman): Earth Shock, lightning and Healing Wave used, nothing beyond level.
+
+## Built: v0.10.0 (improvement batch), being tested on the Forever stress test
 - **Reading:** text size setting (small/medium/large; larger defaults, more padding and line spacing), a soft divider under the header, a resizable journal window (size remembered), and Read aloud (`C_VoiceChat.SpeakText(voiceID, text, rate, volume, overlap)`, the 12.x signature, checked in Blizzard's API docs). A drop cap isn't possible: WoW text can't flow around a big letter.
 - **Story:** quest-giver names (`questnpc`/`npc`) in the prompt and template, plus a People page (`char.people`); mood buttons on the unwritten page (stored on the entry); time of day at rest; milestone reflections (level x0, first death, first dungeon); length setting (short/normal/long); new moments: rare/epic loot, reputation standing, profession ranks (every 25), achievements, sitting by a campfire. Chat-message patterns are built from Blizzard's own format strings (works in any client language).
 - **Chapters:** derived from entries (new level band or new continent), shown as headers in the left list; a chapter page with Summary with AI / Write it plainly; summaries are included in the export.

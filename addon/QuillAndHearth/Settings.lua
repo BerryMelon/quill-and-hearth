@@ -7,7 +7,6 @@ local DEFAULTS = {
     autoOpen = true,       -- open the journal on the unwritten page after resting / logging back in
     moodPrompt = true,     -- offer a mood choice on the unwritten page
     ritual = true,         -- /read emote and book sounds when the journal opens after a rest
-    ttsRate = 0,           -- read-aloud speed, -10..10
 }
 QH.SETTING_DEFAULTS = DEFAULTS
 
