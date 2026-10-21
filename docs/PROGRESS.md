@@ -28,9 +28,27 @@
 - 🐞→🔧 Campfire rest was allowed far from the fire (the buff lasts a long time). **Fixed:** the addon now remembers where you were when you got or refreshed the camp buff, and only allows campfire rest within 20 yards of that spot. **Not yet retested in game.**
 
 ## Next time
-1. Retest the campfire fix and paste the `/quill restcheck` buff list (exact camp buff name and spell ID → `CAMP_AURA_SPELLS`).
-2. Test phase 2 onboarding in game (both the TRP3 import and the manual wizard).
-3. Phase 3: companion app (Node/TS, Gemini). Phase 4: journal UI with stock Blizzard templates.
+1. Add a Gemini API key to `companion/.env` and do the first real run (`npm run once -- --dry-run`, then `npm start`).
+2. Phase 4: journal UI (stock Blizzard templates) that reads `Generated/Entries.lua`. Also handle `/quill rest`: the entry is written *after* that reload, so the UI should say "the ink is drying" and offer a reload once the companion finishes.
+3. Pending in-game tests: the TRP3 import, and the campfire fix (paste the `/quill restcheck` buff list).
+
+## Built: Phase 3 (companion app, `companion/`)
+- Node + TypeScript (tsx, vitest, zod 4, @google/genai 2.x, chokidar, luaparse).
+- `savedvars/`: Lua ⇄ JSON (UTF-8 safe; atomic writes).
+- `pipeline/`:
+  - `segment` splits the log into sittings between rests
+  - `calendar` assigns in-character days (+4 days for a voyage to another continent, +1 day after more than 6 hours idle, a rest = next day)
+  - `score` picks key/minor/background moments (capped at 6 key moments; +5 for touching the brief's hooks)
+  - `digest` builds storylines, the journey, and collapsed errands
+- `llm/`:
+  - `brief` turns the TRP3 sheet or onboarding answers into a character brief + hooks (cached by profile hash)
+  - `write` writes one first-person entry per sitting and updates the story memory (strict in-world rules: no game terms, explained travel)
+  - `mock` is the offline writer
+- `state/`: `data/<char>.json` is the source of truth; `Generated/Entries.lua` is rendered from it with `processedThrough` per character (the addon prunes on load).
+- 11 tests passing (incl. end-to-end on the real SavedVariables fixture); `tsc` clean; dry run against the live install works.
+
+## Done (tested in game): Phase 2 setup wizard
+- Wizard tested by the user and works. The TRP3 import is still untested (TRP3 not installed yet).
 
 ## Built, not yet tested in game: Phase 2 (onboarding, v0.2.0)
 - First login without a profile: if TRP3 is ready, a popup offers **Import / Set up manually / Later**. Otherwise an intro popup leads to the wizard.

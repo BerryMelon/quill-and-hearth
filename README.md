@@ -3,7 +3,7 @@
 An automatic, first-person roleplay journal for **World of Warcraft: Forever**. Your character writes about their adventures whenever they rest at an inn, in a city, or by a campfire.
 
 - `addon/QuillAndHearth/`: the in-game addon (Lua). It records story moments and shows the journal.
-- `companion/`: desktop companion (Node/TypeScript, coming in phase 3). It turns the recorded moments into journal entries using an LLM.
+- `companion/`: desktop companion (Node/TypeScript). It turns the recorded moments into journal entries using Gemini. See [companion/README.md](companion/README.md).
 
 ## Development
 

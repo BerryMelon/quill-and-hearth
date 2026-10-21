@@ -1,0 +1,27 @@
+{
+  "name": "quill-and-hearth-companion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Writes Quill & Hearth journal entries with an LLM whenever your character rests.",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "once": "tsx src/index.ts --once",
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^2.30.0",
+    "chokidar": "^6.0.0",
+    "luaparse": "^0.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/luaparse": "^0.2.13",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
