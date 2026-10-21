@@ -1,4 +1,4 @@
-## Interface: 16001
+## Interface: 120105, 16001
 ## Title: Quill & Hearth
 ## Notes: Your character keeps a journal of their adventures, written whenever they rest.
 ## Author: BerryMelon
