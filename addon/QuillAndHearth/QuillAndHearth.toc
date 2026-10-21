@@ -2,7 +2,7 @@
 ## Title: Quill & Hearth
 ## Notes: Your character keeps a journal of their adventures, written whenever they rest.
 ## Author: BerryMelon
-## Version: 0.7.0
+## Version: 0.8.0
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 ## SavedVariables: QuillAndHearthDB
 ## OptionalDeps: totalRP3
@@ -21,6 +21,7 @@ UI\OnboardingWizard.lua
 UI\JournalFrame.lua
 UI\Bridge.lua
 Notes.lua
+Export.lua
 UI\MinimapButton.lua
 Capture.lua
 Rest.lua

@@ -33,6 +33,7 @@ The companion overwrites `addon/QuillAndHearth/Generated/Entries.lua`. To keep t
 | `/quill setup` | set up (or redo) your character: Total RP 3 import or the setup wizard |
 | `/quill profile` | show what the journal knows about your character |
 | `/quill note [text]` | add a personal note to your next entry (no text opens a window; also in the minimap menu) |
+| `/quill export` | copy your whole journal as Markdown (also in the minimap menu and the journal window) |
 | `/quill rest` | rest and write in your journal (inn, city or campfire; reloads UI) |
 | `/quill status` | number of recorded moments |
 | `/quill dump [n]` | list the last n events |

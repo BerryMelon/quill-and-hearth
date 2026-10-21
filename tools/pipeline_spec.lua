@@ -241,6 +241,38 @@ do
 end
 print(("%d Lua tests passed in total (with Writer)"):format(passed))
 
+---------------------------------------------------------------------------
+-- Export
+---------------------------------------------------------------------------
+do
+    local X = { RegisterCommand = function() end }
+    assert(load(EXPORT_SRC, "=Export.lua"))("QuillAndHearth", X)
+    local E = X.Export
+
+    test("Markdown export has a header and one section per entry, oldest first", function()
+        local md = E.ToMarkdown({
+            { day = 1, title = "Ichor and Ash", body = "First.\n\nSecond.", zone = "Tirisfal Glades", subzone = "Brill", restKind = "campfire", level = 6 },
+            { day = 2, dayEnd = 5, title = "Across the Sea", body = "Salt and rope.", zone = "Darkshore", level = 12 },
+        }, { name = "Flonsus Vire", race = "Undead", class = "Priest", realm = "Stormrage", exportedOn = "2026-10-21" })
+        assert(md:find("^# Flonsus Vire's Journal\n"), "title")
+        assert(md:find("%*Undead Priest of Stormrage%*"), "subtitle")
+        assert(md:find("2 entries · exported 2026%-10%-21"), "count/date")
+        local a = md:find("## Day 1: Ichor and Ash", 1, true)
+        local b = md:find("## Days 2-5: Across the Sea", 1, true)
+        assert(a and b and a < b, "sections in order")
+        assert(md:find("*By a campfire near Brill, Tirisfal Glades · level 6*", 1, true), "place line")
+        assert(md:find("First.\n\nSecond.", 1, true), "paragraphs kept")
+        print("\n--- sample export ---\n" .. md)
+    end)
+
+    test("Markdown export of an empty journal", function()
+        local md = E.ToMarkdown({}, { name = "Ari" })
+        assert(md:find("0 entries", 1, true))
+        assert(md:find("still blank", 1, true))
+    end)
+end
+print(("%d Lua tests passed in total (with Export)"):format(passed))
+
 -- The live check uses the richer log (note, voyage, death, fear, errands).
 do
     local d = P.BuildDigest(P.FindSittings(Log(), 0), 1, P.DeriveHooks({ fear = "boars" }))

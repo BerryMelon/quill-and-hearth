@@ -49,6 +49,7 @@ function QH:ShowOptionsMenu(owner)
         end
 
         root:CreateButton("Add a note...", function() QH:ShowNoteDialog() end)
+        root:CreateButton("Export journal...", function() QH:ShowExport() end)
 
         root:CreateDivider()
         root:CreateButton("Set up character...", function() QH:StartOnboarding(true) end)

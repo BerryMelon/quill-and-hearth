@@ -32,7 +32,10 @@
 2. Pending in-game tests: the TRP3 import, and the campfire fix (paste the `/quill restcheck` buff list).
 3. Phase 5 polish: chapters, entry rewrite/hide, UI redesign after v1 feedback.
 
-## Done: v0.7.0 (rewrite any entry). The user checked it in game: looking good
+## Built: v0.8.0 (export), not yet tested in game
+- `Export.lua`: the whole journal as Markdown (an addon can't write files or PDFs), shown pre-selected in a read-only box for Ctrl+C. Header (name, race/class, realm, entry count, date), one `## Day N: Title` section per entry with the place/level line. Opened from the journal footer's **Export** button, the minimap menu's **Export journal...**, or `/quill export`. `Export.ToMarkdown` is pure and tested (20 Lua tests).
+
+## Done: v0.7.0 (rewrite any entry). The user tested everything fully: looking good. The user checked it in game: looking good
 - Length rule (in game + companion): about 150 words for a quiet night, up to about 1000 words when many things happened, never padded (was 120-350).
 - Every new entry stores the prompt it was written from (`entry.prompt`): in-game entries (plain or pasted) and companion entries (the companion stores a copy-paste-ready prompt with the TITLE/ENTRY/MEMORY format). Entries written before v0.7.0 have no prompt, so they show no buttons.
 - Written entries with a prompt show **Copy prompt** / **Paste new version**. In-game entries are replaced in place (`source` becomes `paste`, `rewrittenAt`); companion entries get `journal.overrides[id]` (the generated file is never modified). The page shows (written plainly) / (rewritten).
