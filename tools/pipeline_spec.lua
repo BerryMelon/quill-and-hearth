@@ -443,6 +443,33 @@ do
 end
 print(("%d Lua tests passed in total (v0.10)"):format(passed))
 
+do
+    local W = { Pipeline = QH.Pipeline, Templates = QH.Templates }
+    assert(load(WRITER_SRC, "=Writer.lua"))("QuillAndHearth", W)
+    W.charKey = "People-Test"
+    W.Send = function() end
+    W.GetProfile = function() return { name = "Grok", traits = { voice = "Plain" } } end
+    W.GetSetting = function(_, key) return ({ moodPrompt = true, length = "normal" })[key] end
+    W.char = { events = RichLog(), meta = { name = "Grok", class = "Shaman" }, state = {}, people = {
+        ["Magister Landra"] = { first = 1, zone = "Silvermoon City", tasks = { "An Old Favour", "Lynx Trouble" } },
+        ["Someone New"] = { first = 9999999999, tasks = {} },
+    } }
+
+    test("People met before are remembered in the prompt and the plain entry (not shown in the UI)", function()
+        local pending = W:GetPendingWrite()
+        local prompt = pending.prompt
+        assert(prompt:find("PEOPLE MET BEFORE", 1, true), "section missing")
+        assert(prompt:find("- Magister Landra; first met in Silvermoon City; earlier tasks: An Old Favour", 1, true), "earlier dealings")
+        assert(not prompt:find("earlier tasks: An Old Favour, Lynx Trouble", 1, true), "tonight's task is not 'earlier'")
+        assert(not prompt:find("Someone New", 1, true), "only people met before")
+        local entry = W:WriteTemplateEntry(pending)
+        local again = entry.body:find("Magister Landra again", 1, true) or entry.body:find("Once more it was Magister Landra", 1, true)
+            or entry.body:find("for Magister Landra again", 1, true)
+        assert(again, "plain entry should recognise a familiar face:\n" .. entry.body)
+    end)
+end
+print(("%d Lua tests passed in total (people)"):format(passed))
+
 -- The live check uses the richer log (note, voyage, death, fear, errands).
 do
     local d = P.BuildDigest(P.FindSittings(Log(), 0), 1, P.DeriveHooks({ fear = "boars" }))

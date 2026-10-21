@@ -10,7 +10,7 @@ local LIST_WIDTH = 240
 local ENTRY_ROW, HEADER_ROW = 42, 30
 local INK = { 0.24, 0.15, 0.08 }      -- dark brown text on parchment
 local INK_SOFT = { 0.45, 0.32, 0.20 }
-local PENDING, PEOPLE = "pending", "people"
+local PENDING = "pending"
 local MOODS = { "Weary", "Triumphant", "Troubled", "Grieving", "Hopeful", "Content" }
 
 ---------------------------------------------------------------------------
@@ -293,7 +293,7 @@ function Journal:Build()
     Tooltip(self.secondaryButton, function() return self.secondaryTip and self.secondaryTip[1] or "" end,
         function() return self.secondaryTip and self.secondaryTip[2] end)
 
-    -- Footer: status, people, export, options
+    -- Footer: status, export, options
     self.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.status:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 9)
     self.status:SetPoint("RIGHT", f, "RIGHT", -300, 0)
@@ -307,10 +307,6 @@ function Journal:Build()
     self.exportButton:SetPoint("RIGHT", self.optionsButton, "LEFT", -4, 0)
     self.exportButton:SetScript("OnClick", function() QH:ShowExport() end)
     Tooltip(self.exportButton, "Export journal", "Copy your journal as Markdown, to keep it or turn it into a PDF.")
-    self.peopleButton = SmallButton(f, "People", 84)
-    self.peopleButton:SetPoint("RIGHT", self.exportButton, "LEFT", -4, 0)
-    self.peopleButton:SetScript("OnClick", function() self:Select(PEOPLE) end)
-    Tooltip(self.peopleButton, "People I've met", "Everyone who asked your character for help.")
 
     QH:Listen("ENTRY_WRITTEN", function()
         if self.frame:IsShown() then self:Refresh(self.selected ~= PENDING and self.selected or true) end
@@ -618,27 +614,6 @@ function Journal:ShowChapterPage(ch)
         })
 end
 
-function Journal:ShowPeoplePage()
-    local people = QH.char.people or {}
-    local list = {}
-    for name, p in pairs(people) do table.insert(list, { name = name, p = p }) end
-    table.sort(list, function(a, b) return (a.p.last or 0) > (b.p.last or 0) end)
-    local lines = {}
-    if #list == 0 then
-        table.insert(lines, "No one yet. Everyone who asks for your help will be remembered here.")
-    end
-    for _, item in ipairs(list) do
-        local p = item.p
-        local line = ("|cff5a3a1a%s|r"):format(item.name)
-        if p.zone then line = line .. ("  |cff8a7a6a(met in %s)|r"):format(p.zone) end
-        if p.tasks and #p.tasks > 0 then
-            line = line .. "\n    " .. table.concat(p.tasks, ", ")
-        end
-        table.insert(lines, line)
-    end
-    self:ShowPage("", "People I've met", ("%d %s"):format(#list, #list == 1 and "person" or "people"), table.concat(lines, "\n\n"), {})
-end
-
 function Journal:ShowEmptyPage()
     local _, moments = QH:GetPendingInfo()
     local body = ("Your journal is still empty.\n\n%d %s been recorded since you began. "
@@ -647,16 +622,13 @@ function Journal:ShowEmptyPage()
     self:ShowPage("", "A blank page", "", body, {})
 end
 
---- key: PENDING, PEOPLE, an entry id, or "chapter:<key>".
+--- key: PENDING, an entry id, or "chapter:<key>".
 function Journal:Select(key)
     self.job, self.selectedEntry = nil, nil
     if key == PENDING and self.pending then
         self.selected = PENDING
         self.job = QH.Bridge.PendingJob(self.pending)
         self:ShowPendingPage()
-    elseif key == PEOPLE then
-        self.selected = PEOPLE
-        self:ShowPeoplePage()
     elseif type(key) == "string" and key:find("^chapter:") then
         local ch = QH:FindChapter(key:sub(9))
         if ch then
@@ -697,7 +669,7 @@ end
 ---------------------------------------------------------------------------
 -- Open / refresh
 ---------------------------------------------------------------------------
---- target: a selection key (entry id, "chapter:..", PEOPLE), `true` for the newest entry, or nil
+--- target: a selection key (entry id or "chapter:.."), `true` for the newest entry, or nil
 --- to show the unwritten page first (if there is one).
 function Journal:Refresh(target)
     self.pending = QH:GetPendingWrite()

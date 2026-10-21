@@ -60,6 +60,38 @@ function QH:SetPendingMood(mood)
     self.char.state.pendingMood = mood
 end
 
+--- People in tonight's moments whom the character had already met before these nights.
+--- Marks those moments (m.metBefore) and returns a short list for the prompt, or nil.
+local function PeopleMetBefore(people, digest, sittings)
+    if not people then return nil end
+    local firstEvent = sittings[1].events[1]
+    local startT = firstEvent and firstEvent.t or digest.lastRest.t
+    local current = {}
+    for _, thread in ipairs(digest.threads) do
+        for _, m in ipairs(thread.moments) do
+            if m.title then current[m.title] = true end
+        end
+    end
+    local list, seen = {}, {}
+    for _, thread in ipairs(digest.threads) do
+        for _, m in ipairs(thread.moments) do
+            local p = m.giver and people[m.giver]
+            if p and (p.first or 0) < startT then
+                m.metBefore = true
+                if not seen[m.giver] then
+                    seen[m.giver] = true
+                    local earlier = {}
+                    for _, title in ipairs(p.tasks or {}) do
+                        if not current[title] then table.insert(earlier, title) end
+                    end
+                    table.insert(list, { name = m.giver, zone = p.zone, tasks = earlier })
+                end
+            end
+        end
+    end
+    return #list > 0 and list or nil
+end
+
 --- The unwritten nights: a digest + prompt for every rest not yet written up, or nil.
 function QH:GetPendingWrite()
     if not self.char then return nil end
@@ -72,6 +104,7 @@ function QH:GetPendingWrite()
     local entries = self:GetEntries()
     for i = math.max(1, #entries - 7), #entries do table.insert(titles, entries[i].title) end
     local opts = self:GetWriteOptions()
+    opts.people = PeopleMetBefore(self.char.people, digest, sittings)
     local prompt = P.BuildPrompt(profile, self.char.meta, self:GetJournal().memory, digest, titles, opts)
     return { digest = digest, prompt = prompt, sittings = sittings, opts = opts }
 end

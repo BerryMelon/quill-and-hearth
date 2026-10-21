@@ -518,6 +518,16 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
     if previousTitles and #previousTitles > 0 then
         line("Previous entry titles (avoid repeating): " .. table.concat(previousTitles, " | "))
     end
+    if opts.people and #opts.people > 0 then
+        line()
+        line("PEOPLE MET BEFORE (they appear again tonight; the character knows them, so keep continuity with earlier dealings):")
+        for _, p in ipairs(opts.people) do
+            local parts = { "- " .. p.name }
+            if p.zone then table.insert(parts, "first met in " .. p.zone) end
+            if p.tasks and #p.tasks > 0 then table.insert(parts, "earlier tasks: " .. table.concat(p.tasks, ", ")) end
+            line(table.concat(parts, "; "))
+        end
+    end
     line()
     line("WHAT HAPPENED SINCE THE LAST ENTRY")
     line(("Writing tonight %s at %s%s."):format(digest.restKind == "campfire" and "by a campfire" or "somewhere safe",

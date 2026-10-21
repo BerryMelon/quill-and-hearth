@@ -2,6 +2,9 @@
 
 > **2026-10-21: the companion app was removed (v0.9.0).** Copy-paste with any AI chat plus the in-game template writer cover everything, with no installs, no API keys and no privacy concerns. Flonsus's 2 companion-written entries were migrated into his saved journal (backup: `SavedVariables\QuillAndHearth.lua.before-companion-removal.bak`; the companion's data was copied to `scratch\quill-and-hearth-companion-backup`). The companion code is still in git history (last commit with it: `2509049`). Sections below that mention the companion are historical.
 
+## v0.10.2
+- The People page and button were removed (too bland). People are still tracked (`char.people`: first met, zone, tasks). When a quest giver met before these nights appears again, the prompt gets a **PEOPLE MET BEFORE** section (where first met, earlier tasks), and the plain writer says "… again". 29 Lua tests.
+
 ## v0.10.1 (testing feedback on the Forever stress test, 2026-10-21)
 - Text boxes: clicking anywhere in an empty box now focuses it (the scroll frame takes the click; the old click catcher sat behind it).
 - Read aloud removed (TTS voices don't fit characters).

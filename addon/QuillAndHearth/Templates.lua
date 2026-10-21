@@ -176,6 +176,12 @@ B.giver = {
     Poetic = { "{giver} had pressed the matter into my hands.", "It began with {giver}'s request." },
     Terse = { "For {giver}.", "{giver} asked." },
 }
+B.giverAgain = {
+    Plain = { "{giver} again. We're getting to know each other.", "Once more it was {giver} who asked; I'm becoming a familiar face to them." },
+    Formal = { "Once again, {giver} sought my assistance.", "{giver}, whom I have aided before, called upon me again." },
+    Poetic = { "{giver} again, a familiar face on an unfamiliar road.", "Our paths crossed once more, {giver} and I." },
+    Terse = { "{giver} again.", "For {giver}. Again." },
+}
 B.loot = {
     Plain = { "I came away with something special: {item}.", "Among the day's spoils was {item}. I keep looking at it." },
     Formal = { "I acquired a notable item: {item}.", "Fortune granted me {item}." },
@@ -303,7 +309,7 @@ function T.Write(digest, profile, opts)
             elseif m.importance == "KEY" or SPECIFIC[m.type] then
                 table.insert(timeline, { seq = m.seq or 0, day = m.day, moment = m })
             elseif m.title then
-                table.insert(minors, m.giver and (m.title .. " for " .. m.giver) or m.title)
+                table.insert(minors, m.giver and (m.title .. " for " .. m.giver .. (m.metBefore and " again" or "")) or m.title)
             end
         end
     end
@@ -337,7 +343,7 @@ function T.Write(digest, profile, opts)
             local t = m.type
             if t == "quest_done" then
                 sentence(say(B.taskDone, vars), m.day)
-                if m.giver then sentence(say(B.giver, { giver = m.giver })) end
+                if m.giver then sentence(say(m.metBefore and B.giverAgain or B.giver, { giver = m.giver })) end
                 if m.story then
                     local first = m.story:match("^(.-[%.!?])%s") or m.story
                     if #first < 220 then sentence(say(B.taskStory, { story = first })) end
@@ -345,7 +351,7 @@ function T.Write(digest, profile, opts)
                 titleKind, titleVars = titleKind or "task", titleVars or vars
             elseif t == "quest_accept" then
                 sentence(say(B.taskAccepted, vars), m.day)
-                if m.giver then sentence(say(B.giver, { giver = m.giver })) end
+                if m.giver then sentence(say(m.metBefore and B.giverAgain or B.giver, { giver = m.giver })) end
             elseif t == "death" then
                 sentence(say(B.death, vars), m.day)
                 titleKind, titleVars = "death", vars
