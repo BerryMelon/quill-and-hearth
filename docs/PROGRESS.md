@@ -29,6 +29,13 @@
 
 ## Next time
 1. Retest the campfire fix and paste the `/quill restcheck` buff list (exact camp buff name and spell ID → `CAMP_AURA_SPELLS`).
-2. Phase 2: onboarding (TRP3 import prompt + manual wizard: name, class/RP class, characteristics).
-3. Check whether TRP3 runs on the Forever beta.
-4. Phase 3: companion app (Node/TS, Gemini). Phase 4: journal UI with stock Blizzard templates.
+2. Test phase 2 onboarding in game (both the TRP3 import and the manual wizard).
+3. Phase 3: companion app (Node/TS, Gemini). Phase 4: journal UI with stock Blizzard templates.
+
+## Built, not yet tested in game: Phase 2 (onboarding, v0.2.0)
+- First login without a profile: if TRP3 is ready, a popup offers **Import / Set up manually / Later**. Otherwise an intro popup leads to the wizard.
+- `TRP3.lua`: snapshots the TRP3 profile (name, title, race/class, age, eyes, height, weight, birthplace, residence, misc fields, personality traits with strength 0-20, About in all 3 templates, Currently) into `profile.trp3`. Field names verified against the TRP3 source. **TRP3 officially supports Forever** (its TOC lists `16001`).
+- When the TRP3 characteristics/About change (detected via the profile ID plus TRP3's `v` counters), the addon asks whether to re-import.
+- `UI/OnboardingWizard.lua` (stock `ButtonFrameTemplate`), 4 steps: name (or in-game name) → in-game class or RP class → temperament/outlook/upbringing → drive/voice + optional fear and past.
+- Saved as `QuillAndHearthDB.characters[key].profile` with `source = "trp3" | "manual"`.
+- Commands: `/quill setup`, `/quill profile`.

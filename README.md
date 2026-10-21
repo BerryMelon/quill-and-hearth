@@ -22,6 +22,8 @@ npm run lua:check   # syntax-check all addon Lua files
 | Command | What it does |
 |---|---|
 | `/quill` | help |
+| `/quill setup` | set up (or redo) your character: Total RP 3 import or the setup wizard |
+| `/quill profile` | show what the journal knows about your character |
 | `/quill rest` | rest and write in your journal (inn, city or campfire; reloads UI) |
 | `/quill status` | number of recorded moments |
 | `/quill dump [n]` | list the last n events |
