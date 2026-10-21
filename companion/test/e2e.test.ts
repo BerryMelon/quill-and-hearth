@@ -37,6 +37,16 @@ describe("end-to-end with the mock LLM", () => {
     expect(gen.characters[charKey].entries).toHaveLength(2);
   });
 
+  it("skips nights already written in game", async () => {
+    const db = readCharacters(parseSavedVariablesFile(fixture));
+    const charKey = "Flonsus-ClassicBetaPvE";
+    const char = { ...db.characters[charKey], journal: { processedThrough: 2, nextDay: 2 } };
+    const { written, state } = await processCharacter(charKey, char, freshState(charKey), createMockLLM());
+    expect(written.map((e) => e.restSeq)).toEqual([5]);
+    expect(written[0].day).toBe(2);
+    expect(state.processedThrough).toBe(5);
+  });
+
   it("does not call the LLM when there is nothing to write", async () => {
     const db = readCharacters(parseSavedVariablesFile(fixture));
     const llm = createMockLLM();

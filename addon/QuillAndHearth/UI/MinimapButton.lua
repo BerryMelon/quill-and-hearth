@@ -12,10 +12,9 @@ local function FillTooltip(tooltip)
         local unwritten, moments = QH:GetPendingInfo()
         local count = #QH:GetEntries()
         tooltip:AddLine(("%d journal %s"):format(count, count == 1 and "entry" or "entries"), 1, 1, 1)
-        if QH:GetCompanionStatus() ~= "running" then
-            tooltip:AddLine("The companion app isn't running.", 1, 0.5, 0.25)
-        elseif unwritten > 0 then
-            tooltip:AddLine("The ink is drying on your latest entry.", 1, 0.82, 0)
+        if unwritten > 0 then
+            tooltip:AddLine(QH:GetCompanionStatus() == "running" and "The ink is drying on your latest entry."
+                or "An unwritten page is waiting.", 1, 0.82, 0)
         end
         if moments > 0 then
             tooltip:AddLine(("%d %s since your last rest"):format(moments, moments == 1 and "moment" or "moments"), 0.8, 0.8, 0.8)
@@ -42,7 +41,7 @@ function QH:ShowOptionsMenu(owner)
             rest:SetTooltip(function(tooltip)
                 tooltip:SetText("Rest and write")
                 if restKind then
-                    tooltip:AddLine("Your character writes about everything since their last rest. (Reloads your UI.)", 1, 1, 1, true)
+                    tooltip:AddLine("Your character writes about everything since their last rest.", 1, 1, 1, true)
                 else
                     tooltip:AddLine("Find an inn, a city, or sit by a campfire first.", 1, 0.5, 0.25, true)
                 end
@@ -201,10 +200,10 @@ QH:Listen("READY", function()
         if new > 0 then
             QH:Print(("Your journal has |cffffffff%d new %s|r. Click the book on your minimap to read."):format(new, new == 1 and "entry" or "entries"))
         end
-        if companion ~= "running" then
-            QH:Print("|cffff7f3fThe companion app isn't running|r, so nothing new will be written. Start it (|cffffd100npm start|r in the companion folder) before you play.")
-        elseif unwritten > 0 then
+        if companion == "running" and unwritten > 0 then
             QH:Print("The ink is still drying on your latest entry. |cffffd100/reload|r in a moment to read it.")
+        elseif unwritten > 0 then
+            QH:Print("An unwritten page is waiting in your journal. Click the book on your minimap to write it.")
         end
     end)
 end)

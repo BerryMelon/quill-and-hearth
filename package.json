@@ -3,9 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lua:check": "node tools/lua-check.mjs"
+    "lua:check": "node tools/lua-check.mjs",
+    "lua:test": "node tools/lua-test.mjs",
+    "lua:live": "node tools/lua-test.mjs --live"
   },
   "devDependencies": {
+    "fengari": "^0.1.5",
     "luaparse": "^0.3.1"
   }
 }

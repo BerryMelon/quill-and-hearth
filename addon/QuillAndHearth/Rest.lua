@@ -148,14 +148,18 @@ end)
 -- Manual rest: /quill rest
 ---------------------------------------------------------------------------
 StaticPopupDialogs["QUILLANDHEARTH_REST"] = {
-    text = "Rest a while and write in your journal?\n\n|cff999999(This reloads your UI. The companion app then writes your entry; open your journal in a moment.)|r",
+    text = "Rest a while and write in your journal?",
     button1 = "Write",
     button2 = CANCEL,
     OnAccept = function()
         local kind = QH:GetRestKind()
         if kind then
             QH:PushRest(kind, "manual")
-            ReloadUI()
+            if QH:GetCompanionStatus() == "running" then
+                ReloadUI() -- saves the log so the companion can write the entry
+            else
+                QH.Journal:Open() -- write it right away with the copy-paste bridge
+            end
         end
     end,
     timeout = 0,

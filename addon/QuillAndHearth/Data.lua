@@ -110,12 +110,10 @@ function QH:LastEvent()
     return ev and ev[#ev]
 end
 
---- Remove events the companion has already turned into journal entries.
+--- Remove events that have already been turned into journal entries (by the companion or in game).
 function QH:PruneProcessed()
-    local gen = QuillAndHearth_Generated
-    local genChar = gen and gen.characters and gen.characters[self.charKey]
-    local processed = genChar and genChar.processedThrough
-    if type(processed) ~= "number" then return end
+    local processed = self:GetProcessedThrough()
+    if processed <= 0 then return end
 
     local kept = {}
     for _, e in ipairs(self.char.events) do

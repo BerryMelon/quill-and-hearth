@@ -9,21 +9,11 @@ local LIST_WIDTH = 230
 local ROW_HEIGHT = 42
 local INK = { 0.24, 0.15, 0.08 }      -- dark brown text on parchment
 local INK_SOFT = { 0.42, 0.30, 0.18 }
+local PENDING = "pending"
 
 ---------------------------------------------------------------------------
 -- Data helpers
 ---------------------------------------------------------------------------
-local function GeneratedChar()
-    local gen = QuillAndHearth_Generated
-    return gen and gen.characters and gen.characters[QH.charKey]
-end
-
---- Journal entries for this character, oldest first.
-function QH:GetEntries()
-    local c = GeneratedChar()
-    return (c and type(c.entries) == "table") and c.entries or {}
-end
-
 function QH:CompanionHasRun()
     local gen = QuillAndHearth_Generated
     return gen ~= nil and gen.generatedAt ~= nil
@@ -42,11 +32,9 @@ function QH:GetCompanionStatus()
     return "stopped"
 end
 
---- unwrittenRests: rests the companion hasn't written up yet ("ink drying").
---- momentsSinceRest: events recorded after the latest rest.
+--- unwrittenRests: rests not written up yet. momentsSinceRest: events after the latest rest.
 function QH:GetPendingInfo()
-    local c = GeneratedChar()
-    local processed = c and c.processedThrough or 0
+    local processed = self:GetProcessedThrough()
     local unwrittenRests, momentsSinceRest = 0, 0
     for _, e in ipairs(self.char and self.char.events or {}) do
         if e.seq > processed then
@@ -61,17 +49,17 @@ function QH:GetPendingInfo()
     return unwrittenRests, momentsSinceRest
 end
 
-local function DayLabel(e)
-    if e.dayEnd and e.dayEnd ~= e.day then
-        return ("Days %d - %d"):format(e.day or 0, e.dayEnd)
+local function DayLabel(day, dayEnd)
+    if dayEnd and dayEnd ~= day then
+        return ("Days %d - %d"):format(day or 0, dayEnd)
     end
-    return ("Day %d"):format(e.day or 0)
+    return ("Day %d"):format(day or 0)
 end
 
-local function PlaceLabel(e)
-    local place = e.subzone and e.zone and e.subzone ~= e.zone and (e.subzone .. ", " .. e.zone) or e.zone or e.subzone
+local function PlaceText(restKind, zone, subzone)
+    local place = subzone and zone and subzone ~= zone and (subzone .. ", " .. zone) or zone or subzone
     if not place then return "" end
-    return (e.restKind == "campfire" and "By a campfire near " or "Written at ") .. place
+    return (restKind == "campfire" and "By a campfire near " or "Written at ") .. place
 end
 
 ---------------------------------------------------------------------------
@@ -126,6 +114,7 @@ function Journal:Build()
     local bg = page:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
     ApplyParchment(bg)
+    self.page = page
 
     local scroll = CreateFrame("ScrollFrame", "QuillAndHearthJournalPage", page, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 22, -20)
@@ -161,6 +150,23 @@ function Journal:Build()
         self:LayoutPage()
     end)
 
+    -- Write buttons (only on the unwritten page)
+    self.copyButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    self.copyButton:SetSize(150, 24)
+    self.copyButton:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 20, 14)
+    self.copyButton:SetText("1. Copy prompt")
+    self.copyButton:SetScript("OnClick", function()
+        if self.pending then QH.Bridge:ShowPrompt(self.pending) end
+    end)
+
+    self.pasteButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    self.pasteButton:SetSize(150, 24)
+    self.pasteButton:SetPoint("LEFT", self.copyButton, "RIGHT", 10, 0)
+    self.pasteButton:SetText("2. Paste entry")
+    self.pasteButton:SetScript("OnClick", function()
+        if self.pending then QH.Bridge:ShowPaste(self.pending) end
+    end)
+
     -- Footer: status + reload
     self.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.status:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 9)
@@ -180,6 +186,10 @@ function Journal:Build()
         GameTooltip:Show()
     end)
     self.reload:SetScript("OnLeave", GameTooltip_Hide)
+
+    QH:Listen("ENTRY_WRITTEN", function()
+        if self.frame:IsShown() then self:Refresh(true) end
+    end)
 end
 
 ---------------------------------------------------------------------------
@@ -211,11 +221,10 @@ function Journal:GetRow(i)
     row.sub:SetJustifyH("LEFT")
     row.sub:SetWordWrap(false)
 
-    row.newTag = row:CreateFontString(nil, "OVERLAY", "GameFontGreenSmall")
-    row.newTag:SetPoint("TOPRIGHT", row, "TOPRIGHT", -6, -7)
-    row.newTag:SetText("NEW")
+    row.tag = row:CreateFontString(nil, "OVERLAY", "GameFontGreenSmall")
+    row.tag:SetPoint("TOPRIGHT", row, "TOPRIGHT", -6, -7)
 
-    row:SetScript("OnClick", function() self:Select(row.entryIndex) end)
+    row:SetScript("OnClick", function() self:Select(row.key) end)
     self.rows[i] = row
     return row
 end
@@ -223,20 +232,36 @@ end
 function Journal:RefreshList()
     local entries = QH:GetEntries()
     local seenBefore = self.seenBefore or 0
-    -- Newest first.
-    for i = 1, #entries do
-        local entryIndex = #entries - i + 1
-        local e = entries[entryIndex]
+    local i = 0
+
+    if self.pending then
+        i = 1
+        local d = self.pending.digest
         local row = self:GetRow(i)
-        row.entryIndex = entryIndex
-        row.title:SetText(e.title or "Untitled")
-        row.sub:SetText(DayLabel(e) .. (e.zone and ("  |cff999999" .. e.zone .. "|r") or ""))
-        row.newTag:SetShown((e.t or 0) > seenBefore)
-        row.selected:SetShown(entryIndex == self.selectedIndex)
+        row.key = PENDING
+        row.title:SetText("|cffffffffAn unwritten page|r")
+        row.sub:SetText(DayLabel(d.startDay, d.endDay) .. "  |cff999999" .. (d.lastRest.zone or "") .. "|r")
+        row.tag:SetText("|cffffd100INK|r")
+        row.tag:Show()
+        row.selected:SetShown(self.selected == PENDING)
         row:Show()
     end
-    for i = #entries + 1, #self.rows do self.rows[i]:Hide() end
-    self.listChild:SetHeight(math.max(1, #entries * ROW_HEIGHT))
+
+    -- Newest first.
+    for n = #entries, 1, -1 do
+        local e = entries[n]
+        i = i + 1
+        local row = self:GetRow(i)
+        row.key = n
+        row.title:SetText(e.title or "Untitled")
+        row.sub:SetText(DayLabel(e.day, e.dayEnd) .. (e.zone and ("  |cff999999" .. e.zone .. "|r") or ""))
+        row.tag:SetText("NEW")
+        row.tag:SetShown((e.t or 0) > seenBefore)
+        row.selected:SetShown(self.selected == n)
+        row:Show()
+    end
+    for n = i + 1, #self.rows do self.rows[n]:Hide() end
+    self.listChild:SetHeight(math.max(1, i * ROW_HEIGHT))
 end
 
 ---------------------------------------------------------------------------
@@ -250,41 +275,75 @@ function Journal:LayoutPage()
     self.content:SetHeight(math.max(1, height))
 end
 
-function Journal:ShowText(day, title, place, body)
+function Journal:ShowText(day, title, place, body, showWriteButtons)
     self.dayText:SetText(day or "")
     self.titleText:SetText(title or "")
     self.placeText:SetText(place or "")
     self.bodyText:SetText(body or "")
+    self.copyButton:SetShown(showWriteButtons == true)
+    self.pasteButton:SetShown(showWriteButtons == true)
+    self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -32, showWriteButtons and 48 or 16)
     self:LayoutPage()
     self.scroll:SetVerticalScroll(0)
 end
 
-function Journal:ShowEmptyPage()
-    local unwritten, moments = QH:GetPendingInfo()
-    local body
-    if not QH:CompanionHasRun() then
-        body = "Your journal is still empty.\n\nEntries are written by the Quill & Hearth companion app on your computer. "
-            .. "Start it (npm start in the companion folder) and leave it running while you play.\n\n"
-            .. "Whenever you rest, at an inn, in a city, or by a campfire, your character will write about what happened since their last rest."
-    elseif unwritten > 0 then
-        body = "The ink is still drying on your latest entry.\n\nOnce the companion app has finished writing, reload your UI to read it."
-    else
-        body = ("Your journal is still empty.\n\n%d moments have been recorded since your last rest. "
-            .. "Rest at an inn, in a city, or by a campfire, and your character will write about them."):format(moments)
+local function SummarizeDigest(d)
+    local lines = {}
+    for _, thread in ipairs(d.threads) do
+        for _, m in ipairs(thread.moments) do
+            local what = m.title and (m.kind .. ': "' .. m.title .. '"') or m.kind
+            table.insert(lines, ("- %s |cff7a5a3a(%s)|r"):format(what, m.place))
+            if #lines >= 8 then break end
+        end
+        if #lines >= 8 then break end
     end
-    self:ShowText("", "A blank page", "", body)
+    for _, c in ipairs(d.collapsed) do table.insert(lines, "- " .. c) end
+    if #lines == 0 then
+        for _, j in ipairs(d.journey) do
+            table.insert(lines, "- " .. j.text)
+            if #lines >= 6 then break end
+        end
+    end
+    if #lines == 0 then table.insert(lines, "- A quiet stretch with little to tell.") end
+    return table.concat(lines, "\n")
 end
 
-function Journal:Select(entryIndex)
+function Journal:ShowPendingPage()
+    local d = self.pending.digest
+    local nights = d.nights > 1 and (" (%d nights)"):format(d.nights) or ""
+    local body = "Since your last entry:\n" .. SummarizeDigest(d) .. "\n\n"
+    if QH:GetCompanionStatus() == "running" then
+        body = body .. "The companion app is writing this entry. Reload your UI in a moment to read it, or write it yourself with the buttons below.\n\n"
+    end
+    body = body .. "|cff5a3a1aTo write it with any AI chat (ChatGPT, Gemini, Claude...):|r\n"
+        .. "1. Click |cff5a3a1aCopy prompt|r and copy the text (Ctrl+C).\n"
+        .. "2. Paste it into the AI chat and send it.\n"
+        .. "3. Copy the AI's whole reply, click |cff5a3a1aPaste entry|r, paste it (Ctrl+V) and save."
+    self:ShowText(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
+        PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, true)
+end
+
+function Journal:ShowEmptyPage()
+    local _, moments = QH:GetPendingInfo()
+    local body = ("Your journal is still empty.\n\n%d %s been recorded since you began. "
+        .. "Rest at an inn, in a city, or by a campfire, and your character will be ready to write about it.")
+        :format(moments, moments == 1 and "moment has" or "moments have")
+    self:ShowText("", "A blank page", "", body, false)
+end
+
+function Journal:Select(key)
     local entries = QH:GetEntries()
-    local e = entries[entryIndex]
-    if not e then
-        self.selectedIndex = nil
-        self:ShowEmptyPage()
-    else
-        self.selectedIndex = entryIndex
+    if key == PENDING and self.pending then
+        self.selected = PENDING
+        self:ShowPendingPage()
+    elseif type(key) == "number" and entries[key] then
+        self.selected = key
+        local e = entries[key]
         local level = e.level and ("  |cff999999(level %d)|r"):format(e.level) or ""
-        self:ShowText(DayLabel(e), e.title, PlaceLabel(e) .. level, e.body)
+        self:ShowText(DayLabel(e.day, e.dayEnd), e.title, PlaceText(e.restKind, e.zone, e.subzone) .. level, e.body, false)
+    else
+        self.selected = nil
+        self:ShowEmptyPage()
     end
     self:RefreshList()
 end
@@ -296,24 +355,37 @@ function Journal:RefreshStatus()
     local unwritten, moments = QH:GetPendingInfo()
     local companion = QH:GetCompanionStatus()
     local text
-    if companion ~= "running" and (unwritten > 0 or companion == "never") then
-        text = "|cffff7f3fThe companion app isn't running.|r Start it so your journal can be written."
-    elseif unwritten > 0 then
-        text = ("|cffffd100The ink is drying|r on %d %s. Reload once the companion has written %s.")
-            :format(unwritten, unwritten == 1 and "entry" or "entries", unwritten == 1 and "it" or "them")
+    if unwritten > 0 then
+        text = companion == "running"
+            and "|cffffd100The ink is drying.|r The companion is writing your entry; reload in a moment."
+            or "|cffffd100An unwritten page is waiting.|r Copy the prompt into any AI chat, then paste the reply."
     elseif moments > 0 then
-        text = ("%d %s await%s your quill. Rest at an inn, a city or a campfire to write.")
-            :format(moments, moments == 1 and "moment" or "moments", moments == 1 and "s" or "")
+        text = ("%d %s since your last rest. Rest at an inn, a city or a campfire to write.")
+            :format(moments, moments == 1 and "moment" or "moments")
     else
         text = "Nothing new since your last rest."
     end
     self.status:SetText(text)
-    self.reload:SetShown(unwritten > 0)
+    self.reload:SetShown(unwritten > 0 and companion == "running")
 end
 
 ---------------------------------------------------------------------------
--- Open / close
+-- Open / refresh
 ---------------------------------------------------------------------------
+--- Rebuild everything. `selectNewest` jumps to the newest entry (e.g. right after writing one).
+function Journal:Refresh(selectNewest)
+    self.pending = QH:GetPendingWrite()
+    local entries = QH:GetEntries()
+    if self.pending and not selectNewest then
+        self:Select(PENDING)
+    elseif #entries > 0 then
+        self:Select(#entries)
+    else
+        self:Select(nil)
+    end
+    self:RefreshStatus()
+end
+
 function Journal:Open()
     if not QH.char then return end
     if not self.frame then self:Build() end
@@ -323,12 +395,11 @@ function Journal:Open()
 
     local state = QH.char.state
     self.seenBefore = self.seenBefore or state.lastSeenEntryT or 0
-    local entries = QH:GetEntries()
-    self:Select(#entries > 0 and #entries or nil)
-    self:RefreshStatus()
+    self:Refresh(false)
     self.frame:Show()
 
     -- Mark everything as seen (NEW tags stay visible for this session).
+    local entries = QH:GetEntries()
     local newest = entries[#entries]
     if newest and newest.t then state.lastSeenEntryT = math.max(state.lastSeenEntryT or 0, newest.t) end
 end
@@ -342,4 +413,3 @@ function Journal:Toggle()
 end
 
 QH:RegisterCommand("journal", "open your journal (also just /quill)", function() Journal:Toggle() end)
-

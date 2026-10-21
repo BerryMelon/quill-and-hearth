@@ -32,6 +32,14 @@
 2. Pending in-game tests: the TRP3 import, and the campfire fix (paste the `/quill restcheck` buff list).
 3. Phase 5 polish: chapters, entry rewrite/hide, UI redesign after v1 feedback.
 
+## Built: v0.5.0 (no companion needed: copy-paste bridge), not yet tested in game
+- Decision (2026-10-21): tiered approach (see NO_COMPANION_OPTIONS.md). 1) The copy-paste bridge is now the default (done). 2) Next: an in-game template writer (C1) so entries work with no AI at all, later grown into a pre-written snippet library (C2). 3) The companion is optional.
+- `Pipeline.lua`: Lua port of sittings/calendar/scoring/digest/prompt plus ParseReply (tolerant of markdown, missing markers, WoW pipes). Several unwritten nights merge into one entry. Hooks come from the profile's fear text.
+- `Writer.lua`: in-game entries in `char.journal` (entries, processedThrough, nextDay, memory); GetEntries merges companion and in-game entries; pruning uses the max of both processedThrough values.
+- `UI/Bridge.lua`: Copy prompt dialog (read-only, pre-selected, Ctrl+C) and Paste reply dialog (Ctrl+V, Save to journal).
+- Journal: an *unwritten page* row/page with a summary of moments, the steps, and Copy/Paste buttons. `/quill rest` no longer reloads unless the companion is running. The companion skips nights already written in game.
+- Tests: `npm run lua:test` (10 Lua tests via fengari), `npm run lua:live` (real Gemini reply parsed by the addon's parser: passed, and the fear hook showed up in the writing), companion 13 tests.
+
 ## Built: v0.4.0 (minimap button + companion heartbeat), not yet tested in game
 - `UI/MinimapButton.lua`: a draggable round book button on the minimap (left-click: journal; right-click: a MenuUtil menu with Open journal / Rest and write (disabled unless resting) / Set up character / Show profile / Hide button). `/quill minimap` toggles it. The addon compartment supports the same left/right clicks.
 - Companion: `npm run stop`, single instance (`data/companion.pid`), log file (`data/companion.log`), heartbeat (rewrites Entries.lua every 60 s; the addon compares `generatedAt` with its load time and warns if the companion isn't running).

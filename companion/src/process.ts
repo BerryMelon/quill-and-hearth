@@ -29,6 +29,13 @@ export async function processCharacter(
     state.processedThrough = 0;
   }
 
+  // Entries written in game (copy-paste bridge) already cover these events.
+  const writtenInGame = char.journal?.processedThrough ?? 0;
+  if (writtenInGame > state.processedThrough) {
+    state.processedThrough = writtenInGame;
+    state.nextDay = Math.max(state.nextDay, (char.journal?.nextDay ?? 1));
+  }
+
   const sittings = findSittings(char.events ?? [], state.processedThrough);
   if (sittings.length === 0) return { state, written };
 

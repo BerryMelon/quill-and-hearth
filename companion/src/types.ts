@@ -117,6 +117,8 @@ export interface QHCharacter {
   meta?: QHMeta;
   profile?: QHProfile;
   state?: Record<string, unknown>;
+  /** Entries written in game through the copy-paste bridge. */
+  journal?: { processedThrough?: number; nextDay?: number; memory?: string; entries?: unknown };
 }
 
 export interface QHSavedVariables {

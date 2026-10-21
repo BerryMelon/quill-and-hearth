@@ -2,8 +2,10 @@
 
 An automatic, first-person roleplay journal for **World of Warcraft: Forever**. Your character writes about their adventures whenever they rest at an inn, in a city, or by a campfire.
 
-- `addon/QuillAndHearth/`: the in-game addon (Lua). It records story moments and shows the journal.
-- `companion/`: desktop companion (Node/TypeScript). It turns the recorded moments into journal entries using Gemini. See [companion/README.md](companion/README.md).
+- `addon/QuillAndHearth/`: the in-game addon (Lua). It records story moments, builds the story prompt and shows the journal.
+
+**No extra software needed.** When your character rests, the journal shows an *unwritten page*. Click **Copy prompt**, paste it into any AI chat (ChatGPT, Gemini, Claude...), copy the reply back with **Paste entry**, and the entry is written instantly.
+- `companion/` (optional): a desktop companion (Node/TypeScript) that writes entries automatically with Gemini, for players who don't want to copy and paste. See [companion/README.md](companion/README.md).
 
 ## Development
 
@@ -16,6 +18,8 @@ mklink /J "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\Add
 ```
 npm install
 npm run lua:check   # syntax-check all addon Lua files
+npm run lua:test    # run the addon's story pipeline (Pipeline.lua) outside WoW
+npm run lua:live    # send a real in-game prompt to Gemini and parse the reply (needs companion/.env)
 ```
 
 The companion overwrites `addon/QuillAndHearth/Generated/Entries.lua`. To keep that out of commits, run once: `git update-index --skip-worktree addon/QuillAndHearth/Generated/Entries.lua`.
