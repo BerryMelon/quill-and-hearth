@@ -719,7 +719,7 @@ function Journal:Refresh(target)
     self:RefreshStatus()
 end
 
---- opts.ritual: play the writing ritual (book sound, /read emote) if enabled.
+--- opts.ritual: play the writing ritual (book sound, /sit + /e emote) if enabled.
 function Journal:Open(opts)
     if not QH.char then return end
     if not self.frame then self:Build() end
@@ -735,7 +735,11 @@ function Journal:Open(opts)
 
     if opts and opts.ritual and QH:GetSetting("ritual") and not wasShown then
         if PlaySound and SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_OPEN then PlaySound(SOUNDKIT.IG_SPELLBOOK_OPEN) end
-        if opts.emote ~= false and DoEmote and not InCombatLockdown() then pcall(DoEmote, "READ") end
+        if opts.emote ~= false and not InCombatLockdown() then
+            if DoEmote then pcall(DoEmote, "SIT") end
+            local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+            if send then pcall(send, "opens a worn journal and begins to write.", "EMOTE") end
+        end
     elseif not wasShown and PlaySound and SOUNDKIT and SOUNDKIT.IG_QUEST_LOG_OPEN then
         PlaySound(SOUNDKIT.IG_QUEST_LOG_OPEN)
     end

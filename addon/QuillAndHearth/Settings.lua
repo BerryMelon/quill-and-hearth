@@ -6,7 +6,7 @@ local DEFAULTS = {
     length = "normal",     -- short | normal | long (AI prompt)
     autoOpen = true,       -- open the journal on the unwritten page after resting / logging back in
     moodPrompt = true,     -- offer a mood choice on the unwritten page
-    ritual = true,         -- /read emote and book sounds when the journal opens after a rest
+    ritual = true,         -- /sit, /e emote and book sounds when the journal opens after a rest
 }
 QH.SETTING_DEFAULTS = DEFAULTS
 
@@ -112,7 +112,7 @@ local function BuildPanel()
 
     Header(panel, "Resting", -236)
     Checkbox(panel, "Open the journal when I rest", "After resting (or logging back in after a rest), the journal opens on the unwritten page.", "autoOpen", -258)
-    Checkbox(panel, "Writing ritual (emote and sounds)", "Your character reads (/read) and you hear the book open when the journal opens after a rest.", "ritual", -286)
+    Checkbox(panel, "Writing ritual (emote and sounds)", "Your character sits down (/sit), emotes opening their journal (/e), and you hear the book open when resting to write.", "ritual", -286)
 
     Header(panel, "Other", -332)
     local minimap = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
