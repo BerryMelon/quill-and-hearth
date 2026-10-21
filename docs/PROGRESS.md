@@ -25,12 +25,17 @@
 ## Tested in game
 - ??Addon loads; quests are recorded with their full quest and turn-in text (verified in SavedVariables).
 - ??`/quill rest` in an inn records `kind = rested` and reloads.
-- ?留?誘?쐨?Campfire rest was allowed far from the fire (the buff lasts a long time). **Fixed:** the addon now remembers where you were when you got or refreshed the camp buff, and only allows campfire rest within 20 yards of that spot. **Not yet retested in game.**
+- ?筌?沃???Campfire rest was allowed far from the fire (the buff lasts a long time). **Fixed:** the addon now remembers where you were when you got or refreshed the camp buff, and only allows campfire rest within 20 yards of that spot. **Not yet retested in game.**
 
 ## Next time
 1. Journal UI was checked in game on 2026-10-20 and looks good (bring screenshots next time for tuning). Still to test: the full loop (`npm start` in companion/, then `/quill rest` at an inn, the ink-drying status, Reload UI, and reading the new entry).
 2. Pending in-game tests: the TRP3 import, and the campfire fix (paste the `/quill restcheck` buff list).
 3. Phase 5 polish: chapters, entry rewrite/hide, UI redesign after v1 feedback.
+
+## Built: v0.4.0 (minimap button + companion autostart), not yet tested in game
+- `UI/MinimapButton.lua`: a draggable round book button on the minimap (left-click: journal; right-click: a MenuUtil menu with Open journal / Rest and write (disabled unless resting) / Set up character / Show profile / Hide button). `/quill minimap` toggles it. The addon compartment supports the same left/right clicks.
+- Companion: `npm run autostart:on` / `autostart:off` (Windows Startup folder VBS launcher, hidden), `npm run stop`, single instance (`data/companion.pid`), log file (`data/companion.log`), heartbeat (rewrites Entries.lua every 60 s; the addon compares `generatedAt` with its load time and warns if the companion isn't running).
+- An addon can't launch programs, which is why autostart happens at Windows sign-in.
 
 ## Built: Phase 4 (journal UI, v0.3.0)
 - `UI/JournalFrame.lua`: stock `ButtonFrameTemplate`; entry list on the left (newest first, NEW tags), a parchment reading page on the right (`QuestTitleFont`/`QuestFont`), footer status (moments since last rest / ink drying + Reload UI button), an empty-state page that explains the companion.
