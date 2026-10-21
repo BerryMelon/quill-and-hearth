@@ -15,9 +15,10 @@ Every entry keeps its prompt, so you can turn a plain entry into an AI one later
 
 ## Development
 
-The addon folder is linked into the game with a directory junction (Forever beta, and retail for testing):
+The addon folder is linked into the game with a directory junction (Forever stress test / live, Forever beta, and retail for testing):
 
 ```
+mklink /J "C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns\QuillAndHearth" "<repo>\addon\QuillAndHearth"
 mklink /J "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns\QuillAndHearth" "<repo>\addon\QuillAndHearth"
 mklink /J "C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\QuillAndHearth" "<repo>\addon\QuillAndHearth"
 ```
