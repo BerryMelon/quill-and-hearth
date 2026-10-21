@@ -25,10 +25,10 @@
 ## Tested in game
 - ??Addon loads; quests are recorded with their full quest and turn-in text (verified in SavedVariables).
 - ??`/quill rest` in an inn records `kind = rested` and reloads.
-- ?맄?믮윍?Campfire rest was allowed far from the fire (the buff lasts a long time). **Fixed:** the addon now remembers where you were when you got or refreshed the camp buff, and only allows campfire rest within 20 yards of that spot. **Not yet retested in game.**
+- ?留?誘?쐨?Campfire rest was allowed far from the fire (the buff lasts a long time). **Fixed:** the addon now remembers where you were when you got or refreshed the camp buff, and only allows campfire rest within 20 yards of that spot. **Not yet retested in game.**
 
 ## Next time
-1. In game: test the phase 4 journal (`/quill`, the minimap addon menu, the NEW tags, the ink-drying status + Reload button) and the full loop (`npm start` in companion/, rest, reload, read).
+1. Journal UI was checked in game on 2026-10-20 and looks good (bring screenshots next time for tuning). Still to test: the full loop (`npm start` in companion/, then `/quill rest` at an inn, the ink-drying status, Reload UI, and reading the new entry).
 2. Pending in-game tests: the TRP3 import, and the campfire fix (paste the `/quill restcheck` buff list).
 3. Phase 5 polish: chapters, entry rewrite/hide, UI redesign after v1 feedback.
 
