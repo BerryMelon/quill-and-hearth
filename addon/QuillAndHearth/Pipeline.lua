@@ -157,9 +157,21 @@ function P.Score(e, hooks)
         add(3, "found a new home")
     elseif t == "note" then
         add(10, "the player's own note")
+    elseif t == "loot" then
+        if (e.qualityNum or 3) >= 4 then add(5, "a remarkable find") else add(2, "a fine find") end
+    elseif t == "reputation" then
+        local s = (e.standing or ""):lower()
+        if s == "exalted" or s == "revered" then add(5, "a great honour") else add(3, "earned trust") end
+    elseif t == "skill" then
+        add((e.rank or 0) % 75 == 0 and 3 or 2, "a craft improved")
+    elseif t == "achievement" then
+        add(3, "an accomplishment")
+    elseif t == "camp" then
+        add(2, "sat by a campfire")
     elseif t == "hearth" or t == "flight_start" or t == "flight_end" or t == "instance_leave" then
         add(1, "travel")
     end
+    if e.first then add(3, "a first") end
 
     local touched = MatchHooks(TextOf(e), hooks)
     if #touched > 0 then add(5, "touches the character") end
@@ -198,6 +210,7 @@ function P.BuildDigest(sittings, startDay, hooks)
     local day = startDay
     local threads, threadOrder = {}, {}
     local journey, background = {}, {}
+    local reflections = {} -- milestones that deserve a short "looking back" in the entry
     local backgroundOrder = {}
 
     -- Quest story is on the accept event, the outcome on the turn-in.
@@ -268,6 +281,8 @@ function P.BuildDigest(sittings, startDay, hooks)
                 local accept = e.questID and acceptByQuest[e.questID]
                 local m = {
                     seq = e.seq,
+                    type = e.type,
+                    first = e.first,
                     day = day,
                     importance = importance,
                     place = PlaceOf(e),
@@ -278,24 +293,42 @@ function P.BuildDigest(sittings, startDay, hooks)
                     m.title = e.title
                     m.story = P.Clean(accept and accept.text or e.text)
                     m.outcome = P.Clean(e.rewardText, 400)
+                    m.giver = e.giver or (accept and accept.giver)
                 elseif e.type == "quest_accept" then
                     m.kind = "took on a task (NOT finished yet)"
                     m.title = e.title
                     m.story = P.Clean(e.text)
+                    m.giver = e.giver
                 elseif e.type == "level" then
                     m.kind = "grew stronger"
                     m.title = ("Reached level %d"):format(e.level or 0)
+                    if (e.level or 0) % 10 == 0 then reflections["reached level " .. e.level] = true end
                 elseif e.type == "zone" then
                     m.kind = "arrived"
                     m.title = e.continentChanged and ("Arrived in " .. (e.continent or "a new land")) or ("First time in " .. (e.zone or "?"))
                 elseif e.type == "death" then
-                    m.kind = "was struck down"
+                    m.kind = e.first and "was struck down (for the first time ever)" or "was struck down"
+                    if e.first then reflections["the first time they were struck down"] = true end
                 elseif e.type == "note" then
                     m.kind = "personal note (the player's own words)"
                     m.note = P.Clean(e.text, 500)
                 elseif e.type == "instance_enter" then
-                    m.kind = "entered a dungeon"
+                    m.kind = e.first and "entered a dungeon (their first)" or "entered a dungeon"
                     m.title = e.instance
+                    if e.first then reflections["their first dungeon"] = true end
+                elseif e.type == "loot" then
+                    m.kind = ("found something %s"):format(e.quality == "rare" and "fine" or "remarkable")
+                    m.title = e.item
+                elseif e.type == "reputation" then
+                    m.kind = ("became %s with"):format((e.standing or "friendly"):lower())
+                    m.title = e.faction
+                elseif e.type == "skill" then
+                    m.kind = ("improved their %s to %d"):format(e.skill or "craft", e.rank or 0)
+                elseif e.type == "achievement" then
+                    m.kind = "accomplished something"
+                    m.title = e.achievement
+                elseif e.type == "camp" then
+                    m.kind = "sat by a campfire and rested"
                 else
                     m.kind = e.type
                     m.title = e.title or e.instance
@@ -327,6 +360,10 @@ function P.BuildDigest(sittings, startDay, hooks)
     local orderedThreads = {}
     for _, name in ipairs(threadOrder) do table.insert(orderedThreads, threads[name]) end
 
+    local reflectionList = {}
+    for reason in pairs(reflections) do table.insert(reflectionList, reason) end
+    table.sort(reflectionList)
+
     local lastRest = sittings[#sittings].rest
     return {
         startDay = startDay,
@@ -335,11 +372,24 @@ function P.BuildDigest(sittings, startDay, hooks)
         restPlace = PlaceOf(lastRest),
         restKind = lastRest.kind,
         lastRest = lastRest,
+        timeOfDay = P.TimeOfDay(lastRest.hour),
         threads = orderedThreads,
         journey = journey,
         collapsed = collapsed,
+        reflections = reflectionList,
         isEmpty = #orderedThreads == 0 and #collapsed == 0 and #journey == 0,
     }
+end
+
+--- In-game hour -> a word for the prompt and the template writer.
+function P.TimeOfDay(hour)
+    if type(hour) ~= "number" then return nil end
+    if hour < 5 then return "deep in the night" end
+    if hour < 8 then return "at dawn" end
+    if hour < 12 then return "in the morning" end
+    if hour < 17 then return "in the afternoon" end
+    if hour < 21 then return "in the evening" end
+    return "late at night"
 end
 
 ---------------------------------------------------------------------------
@@ -413,8 +463,14 @@ Rules:
 - Stay within the length limit. If there is too much to tell, leave out MINOR moments and errands entirely rather than listing them; KEY moments and personal notes come first.
 - Only write what actually happened. A task marked "NOT finished yet" was only accepted: write about the request or the plan, never as if it were done. Do not invent fights, journeys or results.
 - Retell quest story text in the character's own words; never copy it verbatim.
-- Companions may be named with their class as their calling, but invent nothing about them.
-- Length follows how much happened: about 150 words for a quiet night, up to about 1000 words when many things happened. Never pad a quiet night. No date line.]]
+- Companions may be named with their class as their calling, but invent nothing about them. People who asked for help ("Asked by") may be named.
+- %s No date line.]]
+
+P.LENGTH_RULES = {
+    short = "Keep it brief: about 80 words for a quiet night, up to about 250 words when many things happened.",
+    normal = "Length follows how much happened: about 150 words for a quiet night, up to about 1000 words when many things happened. Never pad a quiet night.",
+    long = "Write generously: about 300 words for a quiet night, up to about 1200 words when many things happened, with rich detail.",
+}
 
 local FORMAT = [[Reply in EXACTLY this format, with nothing before or after it:
 TITLE: <a short evocative title, 2-6 words>
@@ -422,11 +478,13 @@ ENTRY:
 <the journal entry, paragraphs separated by a blank line>
 MEMORY: <the whole story so far including tonight, third person, under 120 words, for continuity next time>]]
 
-function P.BuildPrompt(profile, meta, memory, digest, previousTitles)
+--- opts (all optional): { mood = "Weary", length = "short" | "normal" | "long" }
+function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
+    opts = opts or {}
     local out = {}
     local function line(s) table.insert(out, s or "") end
 
-    line(RULES)
+    line(RULES:format(P.LENGTH_RULES[opts.length] or P.LENGTH_RULES.normal))
     line()
     line("CHARACTER")
     line(P.DescribeCharacter(profile, meta))
@@ -438,12 +496,18 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles)
     end
     line()
     line("WHAT HAPPENED SINCE THE LAST ENTRY")
-    line(("Writing tonight %s at %s."):format(digest.restKind == "campfire" and "by a campfire" or "somewhere safe",
-        digest.restPlace))
+    line(("Writing tonight %s at %s%s."):format(digest.restKind == "campfire" and "by a campfire" or "somewhere safe",
+        digest.restPlace, digest.timeOfDay and (", " .. digest.timeOfDay) or ""))
     if digest.startDay == digest.endDay then
         line(("Covers day %d."):format(digest.startDay))
     else
         line(("Covers days %d to %d."):format(digest.startDay, digest.endDay))
+    end
+    if opts.mood then
+        line(("The character's mood tonight: %s. Let it colour the whole entry."):format(opts.mood))
+    end
+    if digest.reflections and #digest.reflections > 0 then
+        line(("A milestone (%s): end the entry with a short, honest look back at who the character was when the journey began and who they are now."):format(table.concat(digest.reflections, "; ")))
     end
     if #digest.journey > 0 then
         line()
@@ -459,6 +523,7 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles)
                 line(("  - [%s] Day %d, %s: %s%s"):format(m.importance, m.day, m.place, m.kind,
                     m.title and (' "' .. m.title .. '"') or ""))
                 if m.touched and #m.touched > 0 then line("    TOUCHES THE CHARACTER: " .. table.concat(m.touched, ", ")) end
+                if m.giver then line("    Asked by: " .. m.giver) end
                 if m.companions then line("    Companions: " .. table.concat(m.companions, ", ")) end
                 if m.story then line("    Story: " .. OneLine(m.story)) end
                 if m.outcome then line("    Outcome: " .. OneLine(m.outcome)) end
@@ -526,4 +591,35 @@ function P.ParseReply(text)
     title = title and title:gsub('^["\']', ""):gsub('["\']$', "") or "Untitled"
     if title == "" then title = "Untitled" end
     return { title = title, body = body, memory = memory and memory ~= "" and memory or nil }
+end
+
+---------------------------------------------------------------------------
+-- Chapter prompt (title + summary of a run of entries)
+---------------------------------------------------------------------------
+local CHAPTER_RULES = [[You are ghost-writing the private journal of a World of Warcraft character. The character is looking back over a chapter of their journey and writing a chapter title and a short summary, in first person, in their own voice.
+
+Rules:
+- Stay in character and in the world. Never mention game mechanics ("quest", "XP", "level", "loot", "NPC").
+- Summarise the chapter as the character remembers it: what mattered, what changed in them, who they met. Do not list every entry.
+- Only use what the entries below say. Do not invent events.
+- About 120-250 words.]]
+
+local CHAPTER_FORMAT = [[Reply in EXACTLY this format, with nothing before or after it:
+TITLE: <an evocative chapter title, 2-6 words>
+ENTRY:
+<the chapter summary, paragraphs separated by a blank line>]]
+
+function P.BuildChapterPrompt(profile, meta, chapter)
+    local out = { CHAPTER_RULES, "", "CHARACTER", P.DescribeCharacter(profile, meta), "",
+        ("CHAPTER %s (days %d to %d)"):format(chapter.numeral or "?", chapter.firstDay or 0, chapter.lastDay or 0), "" }
+    for _, e in ipairs(chapter.entries) do
+        if not e.hidden then
+            local body = P.Clean(e.body, 700) or ""
+            table.insert(out, ("Day %d - %s:"):format(e.day or 0, e.title or "Untitled"))
+            table.insert(out, OneLine(body))
+            table.insert(out, "")
+        end
+    end
+    table.insert(out, CHAPTER_FORMAT)
+    return table.concat(out, "\n")
 end

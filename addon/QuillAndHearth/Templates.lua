@@ -164,6 +164,63 @@ B.quiet = {
     Poetic = { "The days slipped by like water, leaving little behind.", "A stillness lay over these days." },
     Terse = { "Quiet. Nothing much.", "Uneventful." },
 }
+B.time = {
+    Plain = { "It's {time} as I write.", "Writing this {time}." },
+    Formal = { "I write {time}.", "The hour: {time}." },
+    Poetic = { "It is {time}, and the world has gone soft and quiet.", "I write {time}, while the world holds its breath." },
+    Terse = { "{Time}.", "{Time}. Tired." },
+}
+B.giver = {
+    Plain = { "{giver} had asked for my help with it.", "It was {giver} who asked." },
+    Formal = { "I undertook it at the request of {giver}.", "{giver} had entrusted it to me." },
+    Poetic = { "{giver} had pressed the matter into my hands.", "It began with {giver}'s request." },
+    Terse = { "For {giver}.", "{giver} asked." },
+}
+B.loot = {
+    Plain = { "I came away with something special: {item}.", "Among the day's spoils was {item}. I keep looking at it." },
+    Formal = { "I acquired a notable item: {item}.", "Fortune granted me {item}." },
+    Poetic = { "{item} came into my keeping, and it feels like a promise.", "I found {item}, and for a moment the road felt kinder." },
+    Terse = { "Found {item}. Good.", "New gear: {item}." },
+}
+B.reputation = {
+    Plain = { "{faction} seem to trust me more now. I'm {standing} with them, they say.", "I've earned some standing with {faction}: {standing}, no less." },
+    Formal = { "My standing with {faction} has risen to {standing}.", "{faction} now regard me as {standing}." },
+    Poetic = { "{faction} look at me differently now; I am {standing} in their eyes.", "Doors open a little wider among {faction}. {Standing}, they call me." },
+    Terse = { "{faction}: {standing} now.", "{Standing} with {faction}." },
+}
+B.skill = {
+    Plain = { "My {skill} keeps getting better; I'd put myself at {rank} now.", "Practice is paying off. My {skill} has come a long way." },
+    Formal = { "My proficiency in {skill} has reached {rank}.", "I have made steady progress in {skill}." },
+    Poetic = { "My hands are learning {skill}, one patient lesson at a time.", "{Skill} comes easier to me now, like a song I almost know." },
+    Terse = { "{Skill}: {rank}.", "Better at {skill}." },
+}
+B.achievement = {
+    Plain = { "I managed something I'm proud of: {achievement}.", "A small triumph worth writing down: {achievement}." },
+    Formal = { "I count among my accomplishments: {achievement}.", "An accomplishment worth recording: {achievement}." },
+    Poetic = { "{achievement}. Something to tell the fire about one day.", "I did it: {achievement}." },
+    Terse = { "Done: {achievement}.", "{achievement}. Proud." },
+}
+B.camp = {
+    Plain = { "I stopped by a campfire for a while and just sat.", "There was a campfire on the road, and I let myself rest by it." },
+    Formal = { "I paused at a campfire to rest and gather my thoughts.", "A campfire offered a brief respite." },
+    Poetic = { "I sat by a campfire and watched the sparks climb, and for once I thought of nothing.", "A fire on the roadside, a little warmth, a little peace." },
+    Terse = { "Sat by a fire. Rested.", "Campfire. Short rest." },
+}
+B.reflection = {
+    Plain = { "Looking back, I'm not who I was when I set out. I've grown, and I can feel it.", "Some days I barely recognize the person who started this journey." },
+    Formal = { "In reflection, I am much changed since my journey began.", "I am not the same person who first set out, and I find I do not regret it." },
+    Poetic = { "When I think of who I was at the start, it feels like a stranger's story, and yet it's mine.", "The road has carved me into someone new." },
+    Terse = { "I've changed. Good.", "Not who I was. Stronger." },
+}
+-- Closings by the mood chosen when resting (take priority over temperament).
+B.moodClose = {
+    Weary = { "I'm so tired. Sleep, now.", "Every bone aches. Tomorrow can wait." },
+    Triumphant = { "What a day. I'll sleep well tonight.", "I did well. I'll let myself be proud of that." },
+    Troubled = { "Something about all this sits wrong with me.", "I can't shake this unease." },
+    Grieving = { "It hurts more than I'll admit to anyone but this page.", "Some losses don't fit into words." },
+    Hopeful = { "Tomorrow feels full of promise.", "For the first time in a while, I'm looking forward." },
+    Content = { "A good day. I'm content.", "Warm, fed, and at peace. That's enough." },
+}
 -- Closings by temperament.
 B.close = {
     Stoic = { "Tomorrow there will be more to do. I'll do it.", "Rest now. The road waits." },
@@ -187,7 +244,8 @@ B.title = {
 ---------------------------------------------------------------------------
 --- Write { title, body } for a digest. Told in the order things happened, which reads most
 --- naturally for short template prose (the AI prompt groups by storyline instead).
-function T.Write(digest, profile)
+function T.Write(digest, profile, opts)
+    opts = opts or {}
     local voice = VoiceOf(profile)
     local temperament = profile and profile.traits and profile.traits.temperament
     local pick = Rng(digest.lastRest.seq * 7919 + digest.startDay)
@@ -224,23 +282,28 @@ function T.Write(digest, profile)
 
     -- Opening
     local restPlace = digest.lastRest.subzone or digest.lastRest.zone or "the road"
-    table.insert(paragraphs, say(digest.restKind == "campfire" and B.openCampfire or B.openRested, { place = restPlace }))
+    local opening = say(digest.restKind == "campfire" and B.openCampfire or B.openRested, { place = restPlace })
+    if digest.timeOfDay then
+        opening = opening .. " " .. say(B.time, { time = digest.timeOfDay, Time = Capitalize(digest.timeOfDay) })
+    end
+    table.insert(paragraphs, opening)
 
     -- One timeline of journey beats and story moments, in the order they happened.
     local timeline = {}
     for _, j in ipairs(digest.journey) do
         if j.event then table.insert(timeline, { seq = j.event.seq, day = j.day, journey = j.event }) end
     end
+    local SPECIFIC = { loot = true, reputation = true, skill = true, achievement = true, camp = true }
     local notes, minors = {}, {}
     local titleKind, titleVars
     for _, thread in ipairs(digest.threads) do
         for _, m in ipairs(thread.moments) do
             if m.note then
                 table.insert(notes, m)
-            elseif m.importance == "KEY" then
+            elseif m.importance == "KEY" or SPECIFIC[m.type] then
                 table.insert(timeline, { seq = m.seq or 0, day = m.day, moment = m })
             elseif m.title then
-                table.insert(minors, m.title)
+                table.insert(minors, m.giver and (m.title .. " for " .. m.giver) or m.title)
             end
         end
     end
@@ -271,24 +334,40 @@ function T.Write(digest, profile)
             local vars = { title = m.title or "the task", place = m.place, instance = m.title or "the depths" }
             vars.Instance = Capitalize(vars.instance)
             told = told + 1
-            if m.kind == "completed a task" then
+            local t = m.type
+            if t == "quest_done" then
                 sentence(say(B.taskDone, vars), m.day)
+                if m.giver then sentence(say(B.giver, { giver = m.giver })) end
                 if m.story then
                     local first = m.story:match("^(.-[%.!?])%s") or m.story
                     if #first < 220 then sentence(say(B.taskStory, { story = first })) end
                 end
                 titleKind, titleVars = titleKind or "task", titleVars or vars
-            elseif m.kind == "took on a task (NOT finished yet)" then
+            elseif t == "quest_accept" then
                 sentence(say(B.taskAccepted, vars), m.day)
-            elseif m.kind == "was struck down" then
+                if m.giver then sentence(say(B.giver, { giver = m.giver })) end
+            elseif t == "death" then
                 sentence(say(B.death, vars), m.day)
                 titleKind, titleVars = "death", vars
-            elseif m.kind == "grew stronger" then
+            elseif t == "level" then
                 sentence(say(B.level, vars), m.day)
-            elseif m.kind == "entered a dungeon" then
+            elseif t == "instance_enter" then
                 vars.with = m.companions and (" with " .. Join(m.companions)) or ""
                 sentence(say(B.dungeon, vars), m.day)
                 titleKind, titleVars = titleKind or "dungeon", titleVars or vars
+            elseif t == "loot" then
+                sentence(say(B.loot, { item = m.title or "something fine" }), m.day)
+            elseif t == "reputation" then
+                local standing = (m.kind:match("^became (%S+) with") or "friendly")
+                sentence(say(B.reputation, { faction = m.title or "the locals", standing = standing, Standing = Capitalize(standing) }), m.day)
+            elseif t == "skill" then
+                local skill, rank = m.kind:match("^improved their (.+) to (%d+)$")
+                skill = skill or "craft"
+                sentence(say(B.skill, { skill = skill, Skill = Capitalize(skill), rank = rank or "?" }), m.day)
+            elseif t == "achievement" then
+                sentence(say(B.achievement, { achievement = m.title or "something" }), m.day)
+            elseif t == "camp" then
+                sentence(say(B.camp), m.day)
             else
                 told = told - 1 -- arrivals are already told by the journey
             end
@@ -329,8 +408,13 @@ function T.Write(digest, profile)
         titleKind = titleKind or "note"
     end
 
-    -- Closing
-    local closings = B.close[temperament] or B.close.default
+    -- Milestones: a short look back.
+    if digest.reflections and #digest.reflections > 0 then
+        table.insert(paragraphs, say(B.reflection))
+    end
+
+    -- Closing: the chosen mood first, otherwise the character's temperament.
+    local closings = (opts.mood and B.moodClose[opts.mood]) or B.close[temperament] or B.close.default
     table.insert(paragraphs, closings[pick(#closings)])
 
     -- Title
@@ -353,4 +437,49 @@ function T.Write(digest, profile)
     local title = Fill(titleBank[pick(#titleBank)], vars or {})
 
     return { title = title, body = table.concat(paragraphs, "\n\n") }
+end
+
+---------------------------------------------------------------------------
+-- Chapter summary (no AI)
+---------------------------------------------------------------------------
+B.chapterOpen = {
+    Plain = { "Looking back over these days, from {from} to {to}:", "A few words to remember these days by, from {from} to {to}:" },
+    Formal = { "A summary of the days spent between {from} and {to}:", "In review, the period from {from} to {to}:" },
+    Poetic = { "From {from} to {to}, the road unrolled like this:", "These are the days between {from} and {to}, as I remember them:" },
+    Terse = { "{from} to {to}. Summary:", "Recap. {from}, then {to}." },
+}
+B.chapterList = {
+    Plain = { "I wrote about {list}.", "There was {list}." },
+    Formal = { "I recorded {list}.", "Those pages tell of {list}." },
+    Poetic = { "The pages remember {list}.", "There was {list}, each a stone on the path." },
+    Terse = { "{list}.", "Covered: {list}." },
+}
+B.chapterClose = {
+    Plain = { "On to whatever comes next.", "It feels like a chapter, now that I look at it." },
+    Formal = { "So concludes this chapter of my account.", "Thus ends this part of the record." },
+    Poetic = { "One chapter closes; the ink is already wet for the next.", "The page turns." },
+    Terse = { "Chapter done.", "Next." },
+}
+
+function T.ChapterSummary(chapter, profile)
+    local voice = VoiceOf(profile)
+    local pick = Rng((chapter.number or 1) * 104729)
+    local function say(bank, vars)
+        local variants = bank[voice] or bank.Plain
+        return Fill(variants[pick(#variants)], vars or {})
+    end
+    local titles = {}
+    for _, e in ipairs(chapter.entries) do
+        if not e.hidden and e.title then table.insert(titles, '"' .. e.title .. '"') end
+    end
+    while #titles > 6 do table.remove(titles, 1) end
+    local zones = chapter.zoneOrder or {}
+    local from = zones[1] or "the road"
+    local to = zones[#zones] or from
+    local body = table.concat({
+        say(B.chapterOpen, { from = from, to = to }),
+        say(B.chapterList, { list = Join(titles) }),
+        say(B.chapterClose),
+    }, "\n\n")
+    return { title = chapter.mainZone and ("The Days in " .. chapter.mainZone) or "The Road", body = body }
 end

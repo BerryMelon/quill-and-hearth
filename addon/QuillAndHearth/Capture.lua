@@ -74,12 +74,40 @@ end
 local pendingDetail   -- text seen in the quest-giver dialog (QUEST_DETAIL)
 local pendingComplete -- text seen in the turn-in dialog (QUEST_COMPLETE)
 
+--- Name of the NPC (or object) the quest dialog belongs to, if it's a usable value.
+local function QuestGiver()
+    local name = Safe(UnitName("questnpc")) or Safe(UnitName("npc"))
+    if type(name) ~= "string" or name == "" then return nil end
+    return name
+end
+
+--- Remember people the character dealt with (for the prompt's story memory and the People page).
+function QH:MeetPerson(name, questTitle)
+    if not (name and self.char) then return end
+    local people = self.char.people or {}
+    self.char.people = people
+    local p = people[name]
+    if not p then
+        local loc = self:GetLocation()
+        p = { first = GetServerTime(), zone = loc.subzone and (loc.subzone .. ", " .. (loc.zone or "")) or loc.zone, tasks = {}, count = 0 }
+        people[name] = p
+    end
+    p.count = p.count + 1
+    p.last = GetServerTime()
+    if questTitle then
+        for _, t in ipairs(p.tasks) do if t == questTitle then return end end
+        table.insert(p.tasks, questTitle)
+        if #p.tasks > 6 then table.remove(p.tasks, 1) end
+    end
+end
+
 QH:On("QUEST_DETAIL", function()
     pendingDetail = {
         questID = GetQuestID(),
         title = Safe(GetTitleText()),
         text = Truncate(GetQuestText(), QUEST_TEXT_MAX),
         objectives = Truncate(GetObjectiveText(), 400),
+        giver = QuestGiver(),
     }
 end)
 
@@ -95,10 +123,12 @@ QH:On("QUEST_ACCEPTED", function(_, ...)
         e.title = e.title or pendingDetail.title
         e.text = pendingDetail.text
         e.objectives = pendingDetail.objectives
+        e.giver = pendingDetail.giver
     end
     pendingDetail = nil
 
     Merge(e, GetQuestFacts(questID))
+    QH:MeetPerson(e.giver, e.title)
     QH:Push("quest_accept", e)
 end)
 
@@ -109,6 +139,7 @@ QH:On("QUEST_COMPLETE", function()
         title = Safe(GetTitleText()),
         rewardText = Truncate(GetRewardText(), QUEST_TEXT_MAX),
         facts = questID and GetQuestFacts(questID) or {},
+        giver = QuestGiver(),
     }
 end)
 
@@ -117,10 +148,12 @@ QH:On("QUEST_TURNED_IN", function(_, questID)
     if pendingComplete and pendingComplete.questID == questID then
         e.title = e.title or pendingComplete.title
         e.rewardText = pendingComplete.rewardText
+        e.giver = pendingComplete.giver
         Merge(e, pendingComplete.facts)
     end
     pendingComplete = nil
     e.party = GetParty()
+    QH:MeetPerson(e.giver, e.title)
     QH:Push("quest_done", e)
 end)
 
@@ -162,7 +195,8 @@ local function CheckInstance()
     if dungeonLike and not s.instance then
         local name = GetInstanceInfo()
         s.instance = name
-        QH:Push("instance_enter", { instance = name, instanceType = instanceType, party = GetParty() })
+        QH:Push("instance_enter", { instance = name, instanceType = instanceType, party = GetParty(),
+            first = QH:MarkFirst("dungeon") or nil })
     elseif not dungeonLike and s.instance then
         QH:Push("instance_leave", { instance = s.instance })
         s.instance = nil
@@ -229,5 +263,82 @@ QH:On("PLAYER_LEVEL_UP", function(_, newLevel)
 end)
 
 QH:On("PLAYER_DEAD", function()
-    QH:Push("death", {})
+    QH:Push("death", { first = QH:MarkFirst("death") or nil })
+end)
+
+--- True the first time this kind of thing ever happens to the character (for reflections).
+function QH:MarkFirst(kind)
+    local s = self.char and self.char.state
+    if not s then return false end
+    s.firsts = s.firsts or {}
+    if s.firsts[kind] then return false end
+    s.firsts[kind] = true
+    return true
+end
+
+---------------------------------------------------------------------------
+-- More moments: notable loot, reputation, profession milestones, achievements
+---------------------------------------------------------------------------
+--- Turn a Blizzard format string ("You receive loot: %s.") into a Lua pattern.
+local function PatternFrom(fmt)
+    if type(fmt) ~= "string" then return nil end
+    local p = fmt:gsub("%%%d?%$?s", "\1"):gsub("%%%d?%$?d", "\2")
+    p = p:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")
+    p = p:gsub("\1", "(.+)"):gsub("\2", "(%%d+)")
+    return "^" .. p .. "$"
+end
+
+QH.PatternFrom = PatternFrom -- exposed for tests
+
+local LOOT_PATTERNS = {}
+for _, key in ipairs({ "LOOT_ITEM_SELF_MULTIPLE", "LOOT_ITEM_SELF", "LOOT_ITEM_PUSHED_SELF_MULTIPLE",
+    "LOOT_ITEM_PUSHED_SELF", "LOOT_ITEM_CREATED_SELF" }) do
+    local p = PatternFrom(_G[key])
+    if p then table.insert(LOOT_PATTERNS, p) end
+end
+local QUALITY_NAMES = { [3] = "rare", [4] = "epic", [5] = "legendary", [6] = "artifact" }
+
+QH:On("CHAT_MSG_LOOT", function(_, msg)
+    msg = Safe(msg)
+    if type(msg) ~= "string" then return end
+    for _, pattern in ipairs(LOOT_PATTERNS) do
+        local link = msg:match(pattern)
+        if link then
+            local itemString = link:match("|H(item:[^|]+)|h")
+            local name = link:match("|h%[(.-)%]|h")
+            local quality = itemString and C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemString)
+            if name and quality and quality >= 3 then
+                QH:Push("loot", { item = name, quality = QUALITY_NAMES[quality] or "rare", qualityNum = quality })
+            end
+            return
+        end
+    end
+end)
+
+local STANDING_PATTERN = PatternFrom(_G.FACTION_STANDING_CHANGED) -- "You are now %s with %s."
+QH:On("CHAT_MSG_SYSTEM", function(_, msg)
+    msg = Safe(msg)
+    if type(msg) ~= "string" or not STANDING_PATTERN then return end
+    local standing, faction = msg:match(STANDING_PATTERN)
+    if standing and faction then
+        QH:Push("reputation", { standing = standing, faction = faction })
+    end
+end)
+
+local SKILL_PATTERN = PatternFrom(_G.SKILL_RANK_UP) -- "Your skill in %s has increased to %d."
+QH:On("CHAT_MSG_SKILL", function(_, msg)
+    msg = Safe(msg)
+    if type(msg) ~= "string" or not SKILL_PATTERN then return end
+    local skill, rank = msg:match(SKILL_PATTERN)
+    rank = tonumber(rank)
+    if skill and rank and rank % 25 == 0 then
+        QH:Push("skill", { skill = skill, rank = rank })
+    end
+end)
+
+QH:On("ACHIEVEMENT_EARNED", function(_, achievementID)
+    if not GetAchievementInfo then return end
+    local _, name = GetAchievementInfo(achievementID)
+    name = Safe(name)
+    if name then QH:Push("achievement", { achievement = name }) end
 end)

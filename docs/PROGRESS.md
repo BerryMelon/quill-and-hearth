@@ -2,6 +2,15 @@
 
 > **2026-10-21: the companion app was removed (v0.9.0).** Copy-paste with any AI chat plus the in-game template writer cover everything, with no installs, no API keys and no privacy concerns. Flonsus's 2 companion-written entries were migrated into his saved journal (backup: `SavedVariables\QuillAndHearth.lua.before-companion-removal.bak`; the companion's data was copied to `scratch\quill-and-hearth-companion-backup`). The companion code is still in git history (last commit with it: `2509049`). Sections below that mention the companion are historical.
 
+## Built: v0.10.0 (improvement batch), not yet tested in game
+- **Reading:** text size setting (small/medium/large; larger defaults, more padding and line spacing), a soft divider under the header, a resizable journal window (size remembered), and Read aloud (`C_VoiceChat.SpeakText(voiceID, text, rate, volume, overlap)`, the 12.x signature, checked in Blizzard's API docs). A drop cap isn't possible: WoW text can't flow around a big letter.
+- **Story:** quest-giver names (`questnpc`/`npc`) in the prompt and template, plus a People page (`char.people`); mood buttons on the unwritten page (stored on the entry); time of day at rest; milestone reflections (level x0, first death, first dungeon); length setting (short/normal/long); new moments: rare/epic loot, reputation standing, profession ranks (every 25), achievements, sitting by a campfire. Chat-message patterns are built from Blizzard's own format strings (works in any client language).
+- **Chapters:** derived from entries (new level band or new continent), shown as headers in the left list; a chapter page with Summary with AI / Write it plainly; summaries are included in the export.
+- **Writing flow:** one window for AI (copy the prompt at the top, paste the reply below), auto-save when a TITLE:/ENTRY: reply is pasted; auto-open on the unwritten page after rest/login (setting).
+- **Control:** edit an entry by hand, hide/unhide (never deleted; Show hidden filter), favourites (filter + export option), an options panel (Settings canvas category, `/quill options`).
+- **Ritual:** book sound and the /read emote when the journal opens after a rest (setting).
+- Tests: 28 Lua tests.
+
 ## Current state (v0.9.0)
 - The addon only: event capture, rest markers (inn/city/campfire), onboarding (TRP3 import or wizard), the journal (unwritten page: Write it plainly / Copy prompt / Paste entry; written entries: Copy prompt / Paste new version), personal notes, Markdown export, and a minimap button + menu.
 - Data lives only in SavedVariables (`char.journal`: entries with stored prompts, processedThrough, nextDay, memory). No `Generated/Entries.lua` anymore.

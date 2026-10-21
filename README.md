@@ -38,6 +38,7 @@ npm run lua:live    # dev only: send a real prompt to Gemini and parse the reply
 | `/quill export` | copy your whole journal as Markdown (also in the minimap menu and the journal window) |
 | `/quill setup` | set up (or redo) your character: Total RP 3 import or the setup wizard |
 | `/quill profile` | show what the journal knows about your character |
+| `/quill options` | open the options (text size, entry length, mood prompt, auto-open, writing ritual, minimap button); also in Options > AddOns |
 | `/quill minimap` | show or hide the minimap button |
 | `/quill help` | list commands |
 | `/quill status` | number of recorded moments |

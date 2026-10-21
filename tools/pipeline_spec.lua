@@ -202,6 +202,7 @@ do
     } } }
     W.Send = function() end
     W.GetProfile = function() return { name = "Ari", traits = { voice = "Plain" } } end
+    W.GetSetting = function(_, key) return ({ moodPrompt = true, length = "normal" })[key] end
 
     test("Template entries keep their prompt", function()
         local pending = W:GetPendingWrite()
@@ -272,6 +273,170 @@ do
 end
 print(("%d Lua tests passed in total (with Export)"):format(passed))
 
+---------------------------------------------------------------------------
+-- v0.10: mood, time of day, givers, reflections, new moments, chapters, edit/hide/favourite
+---------------------------------------------------------------------------
+local function RichLog()
+    local seq, t = 0, 1900000000
+    local events = {}
+    local function ev(e)
+        seq, t = seq + 1, t + 300
+        e.seq, e.t = seq, t
+        e.zone = e.zone or "Eversong Woods"
+        e.continent = e.continent or "Eastern Kingdoms"
+        e.level = e.level or 9
+        events[#events + 1] = e
+    end
+    ev({ type = "quest_accept", questID = 7, title = "Lynx Trouble", giver = "Magister Landra", text = "Feral lynxes stalk the village." })
+    ev({ type = "quest_done", questID = 7, title = "Lynx Trouble", giver = "Magister Landra", rewardText = "You have my thanks. The village can breathe again, and the children may play in the glade once more." })
+    ev({ type = "loot", item = "Sunstrider Blade", quality = "epic", qualityNum = 4 })
+    ev({ type = "reputation", faction = "Silvermoon City", standing = "Honored" })
+    ev({ type = "skill", skill = "Tailoring", rank = 75 })
+    ev({ type = "achievement", achievement = "Explore Eversong Woods" })
+    ev({ type = "camp" })
+    ev({ type = "death", first = true })
+    ev({ type = "level", level = 10 })
+    ev({ type = "rest", kind = "campfire", zone = "Eversong Woods", subzone = "Fairbreeze Village", hour = 23 })
+    return events
+end
+
+test("Prompt carries mood, time of day, reflections, givers and the length setting", function()
+    local d = P.BuildDigest(P.FindSittings(RichLog(), 0), 1, {})
+    eq(d.timeOfDay, "late at night")
+    assert(#d.reflections >= 2, "level 10 and first death are milestones")
+    local prompt = P.BuildPrompt(nil, { name = "Fistnal" }, "", d, {}, { mood = "Weary", length = "short" })
+    assert(prompt:find("Fairbreeze Village, Eversong Woods, late at night", 1, true), "time of day")
+    assert(prompt:find("mood tonight: Weary", 1, true), "mood")
+    assert(prompt:find("A milestone", 1, true), "reflection")
+    assert(prompt:find("Asked by: Magister Landra", 1, true), "quest giver")
+    assert(prompt:find("Keep it brief", 1, true), "short length rule")
+    assert(not prompt:find("%%s"), "no leftover format markers")
+    for _, needle in ipairs({ '"Sunstrider Blade"', '"Silvermoon City"', "Tailoring to 75", '"Explore Eversong Woods"', "campfire" }) do
+        assert(prompt:find(needle, 1, true), "missing " .. needle)
+    end
+    local long = P.BuildPrompt(nil, { name = "Fistnal" }, "", d, {}, { length = "long" })
+    assert(long:find("Write generously", 1, true))
+end)
+
+test("Template writer handles the new moments, mood, time of day and reflections", function()
+    local d = P.BuildDigest(P.FindSittings(RichLog(), 0), 1, {})
+    local w = T.Write(d, { traits = { voice = "Plain", temperament = "Stoic" } }, { mood = "Triumphant" })
+    local b = w.body
+    for _, needle in ipairs({ "late at night", "Magister Landra", "Sunstrider Blade", "Silvermoon City", "Tailoring",
+        "Explore Eversong Woods", "campfire", "spirit healer" }) do
+        assert(b:find(needle, 1, true), "missing " .. needle .. " in:\n" .. b)
+    end
+    assert(not b:find("{"), "unfilled placeholder:\n" .. b)
+    local moodLine = b:find("What a day", 1, true) or b:find("I did well", 1, true)
+    assert(moodLine, "triumphant closing expected:\n" .. b)
+    print("\n--- sample (Plain, Triumphant, rich night) ---\nTITLE: " .. w.title .. "\n\n" .. b .. "\n")
+end)
+
+test("Chat patterns built from Blizzard format strings", function()
+    LOOT_ITEM_SELF = "You receive loot: %s."
+    LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %sx%d."
+    FACTION_STANDING_CHANGED = "You are now %s with %s."
+    SKILL_RANK_UP = "Your skill in %s has increased to %d."
+    local C = { On = function() end, Safe = function(v) return v end, Truncate = function(s) return s end }
+    hooksecurefunc = function() end
+    assert(load(CAPTURE_SRC, "=Capture.lua"))("QuillAndHearth", C)
+    local loot = C.PatternFrom(LOOT_ITEM_SELF)
+    local link = "|cffa335ee|Hitem:19019::::::::60:::::|h[Thunderfury]|h|r"
+    eq(("You receive loot: " .. link .. "."):match(loot), link)
+    local standing, faction = ("You are now Honored with Silvermoon City."):match(C.PatternFrom(FACTION_STANDING_CHANGED))
+    eq(standing, "Honored")
+    eq(faction, "Silvermoon City")
+    local skill, rank = ("Your skill in Tailoring has increased to 75."):match(C.PatternFrom(SKILL_RANK_UP))
+    eq(skill, "Tailoring")
+    eq(rank, "75")
+end)
+
+do
+    GetServerTime = function() return 2000000000 end
+    local W = { Pipeline = QH.Pipeline, Templates = QH.Templates }
+    assert(load(WRITER_SRC, "=Writer.lua"))("QuillAndHearth", W)
+    W.charKey = "Fist-Test"
+    W.char = { events = {}, meta = { name = "Fistnal" }, state = {}, journal = { entries = {
+        { id = "a", t = 1, day = 1, level = 8, continent = "Eastern Kingdoms", zone = "Silvermoon City", title = "Arrival", body = "One." },
+        { id = "b", t = 2, day = 2, level = 9, continent = "Eastern Kingdoms", zone = "Eversong Woods", title = "Lynxes", body = "Two." },
+        { id = "c", t = 3, day = 3, level = 10, continent = "Eastern Kingdoms", zone = "Eversong Woods", title = "Stronger", body = "Three." },
+        { id = "d", t = 4, day = 7, level = 11, continent = "Kalimdor", zone = "Darkshore", title = "Across the Sea", body = "Four." },
+    } } }
+    W.Send = function() end
+    W.GetProfile = function() return { name = "Fistnal", traits = { voice = "Formal" } } end
+    W.GetSetting = function(_, key) return ({ moodPrompt = true, length = "normal" })[key] end
+
+    test("Chapters split on level bands and continents", function()
+        local chapters = W:GetChapters()
+        eq(#chapters, 3)
+        eq(chapters[1].numeral, "I")
+        eq(#chapters[1].entries, 2)
+        eq(chapters[1].mainZone, "Silvermoon City")
+        eq(chapters[2].key, "c")
+        eq(chapters[3].key, "d")
+        eq(chapters[3].isOpen, true)
+        eq(chapters[1].title, "The Days in Silvermoon City")
+    end)
+
+    test("Chapter summaries: AI prompt, pasted reply and plain version", function()
+        local ch = W:GetChapters()[1]
+        local prompt = W:GetChapterPrompt(ch)
+        assert(prompt:find("Day 2 - Lynxes:", 1, true), "entries in prompt")
+        assert(prompt:find("TITLE:", 1, true))
+        local saved = W:SaveChapterSummary(ch.key, "TITLE: Ashes of Quel'Thalas\nENTRY:\nA chapter of beginnings.")
+        eq(saved.title, "Ashes of Quel'Thalas")
+        eq(saved.summary, "A chapter of beginnings.")
+        local plain = W:WriteChapterPlainly(W:GetChapters()[2].key)
+        assert(plain.summary:find('"Stronger"', 1, true), "plain summary lists the entries")
+        assert(not plain.summary:find("{"), "unfilled placeholder")
+    end)
+
+    test("Edit, hide and favourite entries", function()
+        local e = W:EditEntry("b", "  The Lynx Hunt ", "New words.\r\nSecond line.")
+        eq(e.title, "The Lynx Hunt")
+        eq(e.body, "New words.\nSecond line.")
+        local bad, err = W:EditEntry("b", "x", "   ")
+        eq(bad, nil)
+        assert(err)
+        W:SetEntryHidden("a", true)
+        eq(W:FindEntry("a").hidden, true)
+        W:SetEntryHidden("a", false)
+        eq(W:FindEntry("a").hidden, nil)
+        W:SetEntryFavorite("c", true)
+        eq(W:FindEntry("c").favorite, true)
+    end)
+
+    test("Mood is stored on the entry and cleared afterwards", function()
+        W.char.events = RichLog()
+        W:SetPendingMood("Hopeful")
+        local pending = W:GetPendingWrite()
+        assert(pending.prompt:find("mood tonight: Hopeful", 1, true))
+        local entry = W:WriteTemplateEntry(pending)
+        eq(entry.mood, "Hopeful")
+        eq(entry.continent, "Eastern Kingdoms")
+        eq(W.char.state.pendingMood, nil)
+    end)
+
+    test("Markdown export with chapters, summaries and favourites", function()
+        local X = { RegisterCommand = function() end }
+        assert(load(EXPORT_SRC, "=Export.lua"))("QuillAndHearth", X)
+        W.Export = X.Export
+        W.BuildJournalMarkdown = X.BuildJournalMarkdown
+        UnitName = function() return "Fistnal" end
+        W:SetEntryHidden("a", true)
+        local md, count = W:BuildJournalMarkdown(false)
+        assert(md:find("## Chapter I: Ashes of Quel'Thalas", 1, true), "chapter heading")
+        assert(md:find("> A chapter of beginnings.", 1, true), "chapter summary")
+        assert(md:find("### Day 2: The Lynx Hunt", 1, true), "entry under chapter")
+        assert(not md:find("Arrival", 1, true), "hidden entries are not exported")
+        local favMd, favCount = W:BuildJournalMarkdown(true)
+        eq(favCount, 1)
+        assert(favMd:find("Stronger", 1, true) and not favMd:find("Lynx Hunt", 1, true))
+        assert(count >= 4)
+    end)
+end
+print(("%d Lua tests passed in total (v0.10)"):format(passed))
+
 -- The live check uses the richer log (note, voyage, death, fear, errands).
 do
     local d = P.BuildDigest(P.FindSittings(Log(), 0), 1, P.DeriveHooks({ fear = "boars" }))
@@ -280,3 +445,10 @@ do
 end
 
 PARSE = P.ParseReply
+
+-- Live check uses the v0.10 rich night (mood, time of day, milestone, quest giver).
+do
+    local d = P.BuildDigest(P.FindSittings(RichLog(), 0), 1, {})
+    SAMPLE_PROMPT = P.BuildPrompt({ name = "Fistnal Stonehand", class = "Paladin", traits = { temperament = "Stoic", voice = "Plain" } },
+        { name = "Fistnal", race = "Blood Elf", sex = 2, faction = "Horde" }, "", d, {}, { mood = "Weary", length = "normal" })
+end

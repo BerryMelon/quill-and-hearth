@@ -53,6 +53,7 @@ function QH:ShowOptionsMenu(owner)
         root:CreateDivider()
         root:CreateButton("Set up character...", function() QH:StartOnboarding(true) end)
         root:CreateButton("Show character profile", function() QH.commands.profile("") end)
+        root:CreateButton("Options...", function() QH:OpenSettings() end)
         root:CreateDivider()
         root:CreateButton("Hide minimap button", function() QH:SetMinimapButtonShown(false) end)
     end)
@@ -192,7 +193,11 @@ end
 QH:Listen("READY", function()
     C_Timer.After(6, function()
         local unwritten = QH:GetPendingInfo()
-        if unwritten > 0 then
+        if unwritten == 0 then return end
+        -- C3: open on the unwritten page after a logout rest (if enabled and safe to do so).
+        if QH:GetSetting("autoOpen") and not InCombatLockdown() and not (QH.Wizard.frame and QH.Wizard.frame:IsShown()) then
+            Journal:Open({ ritual = true, emote = false })
+        else
             QH:Print("An unwritten page is waiting in your journal. Click the book on your minimap to write it.")
         end
     end)

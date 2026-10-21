@@ -47,10 +47,8 @@ function Export.ToMarkdown(entries, info)
         add("*The pages are still blank.*")
     end
 
-    for i, e in ipairs(entries) do
-        add("---")
-        add()
-        add(("## %s: %s"):format(DayLabel(e), e.title or "Untitled"))
+    local function addEntry(e, level)
+        add(("%s %s: %s"):format(level, DayLabel(e), e.title or "Untitled"))
         local place = PlaceLine(e)
         if place ~= "" then add("*" .. place .. "*") end
         add()
@@ -58,19 +56,55 @@ function Export.ToMarkdown(entries, info)
         add(body)
         add()
     end
+
+    if info.chapters then
+        -- Chapters (already filtered): a chapter heading and summary, then its entries.
+        for _, ch in ipairs(info.chapters) do
+            add("---")
+            add()
+            add(("## Chapter %s: %s"):format(ch.numeral or "?", ch.title or "Untitled"))
+            if ch.summary then
+                add()
+                add("> " .. ch.summary:gsub("\r\n?", "\n"):gsub("\n", "\n> "))
+            end
+            add()
+            for _, e in ipairs(ch.entries) do addEntry(e, "###") end
+        end
+    else
+        for _, e in ipairs(entries) do
+            add("---")
+            add()
+            addEntry(e, "##")
+        end
+    end
     return table.concat(out, "\n")
 end
 
-function QH:BuildJournalMarkdown()
+--- favoritesOnly: export only favourite entries. Hidden entries are never exported.
+function QH:BuildJournalMarkdown(favoritesOnly)
     local profile = self:GetProfile()
     local meta = self.char and self.char.meta or {}
-    return Export.ToMarkdown(self:GetEntries(), {
+    local entries, chapters = {}, {}
+    for _, ch in ipairs(self:GetChapters()) do
+        local kept = {}
+        for _, e in ipairs(ch.entries) do
+            if not e.hidden and (not favoritesOnly or e.favorite) then
+                table.insert(kept, e)
+                table.insert(entries, e)
+            end
+        end
+        if #kept > 0 then
+            table.insert(chapters, { numeral = ch.numeral, title = ch.title, summary = ch.summary, entries = kept })
+        end
+    end
+    return Export.ToMarkdown(entries, {
         name = profile and profile.name or meta.name or UnitName("player"),
         race = profile and profile.trp3 and profile.trp3.race or meta.race,
         class = profile and profile.class or meta.class,
         realm = meta.realm,
         exportedOn = date and date("%Y-%m-%d") or nil,
-    })
+        chapters = chapters,
+    }), #entries
 end
 
 ---------------------------------------------------------------------------
@@ -96,17 +130,29 @@ local function BuildDialog()
         end
     end)
     f.box:SetScript("OnEditFocusGained", function(box) box:HighlightText() end)
+
+    -- D3: favourites only
+    f.favOnly = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    f.favOnly:SetSize(22, 22)
+    f.favOnly:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 4)
+    local label = f.favOnly:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("LEFT", f.favOnly, "RIGHT", 0, 0)
+    label:SetText("Favourites only")
+    f.favOnly:SetHitRectInsets(0, -label:GetStringWidth() - 6, 0, 0)
+    f.favOnly:SetScript("OnClick", function() QH:ShowExport() end)
+    f.note:ClearAllPoints()
+    f.note:SetPoint("LEFT", label, "RIGHT", 12, 0)
+    f.note:SetPoint("RIGHT", f.secondary, "LEFT", -8, 0)
     return f
 end
 
 function QH:ShowExport()
     if not self.char then return end
     dialog = dialog or BuildDialog()
-    local text = self:BuildJournalMarkdown()
-    local count = #self:GetEntries()
+    local text, count = self:BuildJournalMarkdown(dialog.favOnly:GetChecked())
     dialog.text = text
     dialog.box:SetText(text)
-    dialog.note:SetText(("%d %s, %d characters. Everything is selected; just press Ctrl+C.")
+    dialog.note:SetText(("%d %s, %d characters. Selected; press Ctrl+C.")
         :format(count, count == 1 and "entry" or "entries", #text))
     dialog:Show()
     dialog.scroll:SetVerticalScroll(0)

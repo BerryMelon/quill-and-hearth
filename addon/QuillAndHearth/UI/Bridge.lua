@@ -83,114 +83,208 @@ local function CreateTextDialog(name, title, width, height)
 end
 Bridge.CreateTextDialog = CreateTextDialog
 
+
 ---------------------------------------------------------------------------
 -- Jobs: what the prompt is and what happens to the pasted reply.
 --   job.prompt   text to copy
---   job.save     function(replyText) -> entry | nil, errorMessage
---   job.rewrite  true when replacing an existing entry (changes the wording)
+--   job.save     function(replyText) -> result | nil, errorMessage
+--   job.kind     "entry" (tonight's page), "rewrite" (replace an entry), "chapter" (chapter summary)
+--   job.select   journal selection to show after saving (entry id or chapter key)
 ---------------------------------------------------------------------------
---- Job for writing tonight's unwritten page.
 function Bridge.PendingJob(pending)
     return {
+        kind = "entry",
         prompt = pending.prompt,
         save = function(text) return QH:SaveWrittenEntry(pending, text) end,
     }
 end
 
---- Job for replacing an existing entry with a new AI version, using the entry's stored prompt.
 function Bridge.RewriteJob(entry)
     return {
+        kind = "rewrite",
         prompt = entry.prompt,
-        rewrite = true,
-        entryId = entry.id,
+        select = entry.id,
         save = function(text) return QH:RewriteEntry(entry.id, text) end,
     }
 end
 
----------------------------------------------------------------------------
--- Step 1: show the prompt for copying
----------------------------------------------------------------------------
-function Bridge:ShowPrompt(job)
-    if not self.promptFrame then
-        local f = CreateTextDialog("QuillAndHearthPromptDialog", "Copy the prompt")
-        f.instructions:SetText("Press |cffffd100Ctrl+C|r to copy, then paste it into any AI chat (ChatGPT, Gemini, Claude...) and send it.")
-        f.secondary:SetText("Select all")
-        f.secondary:SetScript("OnClick", function()
-            f.box:SetFocus()
-            f.box:HighlightText()
-        end)
-        f.primary:SetText("Next: paste the reply")
-        f.primary:SetScript("OnClick", function()
-            f:Hide()
-            Bridge:ShowPaste(Bridge.job)
-        end)
-        -- Read-only: undo any typing, keep the text selected for copying.
-        f.box:SetScript("OnTextChanged", function(box, userInput)
-            if userInput and box:GetText() ~= f.text then
-                box:SetText(f.text)
-                box:HighlightText()
-            end
-        end)
-        f.box:SetScript("OnEditFocusGained", function(box) box:HighlightText() end)
-        self.promptFrame = f
-    end
-    local f = self.promptFrame
-    self.job = job
-    f.text = job.prompt
-    f.box:SetText(job.prompt)
-    f.note:SetText(("%d characters. The text is selected; just press Ctrl+C."):format(#job.prompt))
-    f:Show()
-    f.scroll:SetVerticalScroll(0)
-    f.box:SetFocus()
-    f.box:HighlightText()
+function Bridge.ChapterJob(chapter)
+    return {
+        kind = "chapter",
+        prompt = QH:GetChapterPrompt(chapter),
+        select = "chapter:" .. chapter.key,
+        save = function(text) return QH:SaveChapterSummary(chapter.key, text) end,
+    }
 end
 
+local TEXTS = {
+    entry = { title = "Write with AI", save = "Save to journal",
+        done = '"%s" was written into your journal.' },
+    rewrite = { title = "Rewrite with AI", save = "Replace entry",
+        done = 'Your entry was rewritten: "%s".' },
+    chapter = { title = "Chapter summary with AI", save = "Save summary",
+        done = 'Chapter summary saved: "%s".' },
+}
+
 ---------------------------------------------------------------------------
--- Step 2: paste the AI's reply
+-- One window: copy the prompt at the top, paste the reply underneath.
 ---------------------------------------------------------------------------
-function Bridge:ShowPaste(job)
-    if not self.pasteFrame then
-        local f = CreateTextDialog("QuillAndHearthPasteDialog", "Paste the AI's reply")
-        f.secondary:SetText("Clear")
-        f.secondary:SetScript("OnClick", function()
-            f.box:SetText("")
-            f.box:SetFocus()
-        end)
-        f.primary:SetScript("OnClick", function()
-            local current = Bridge.job
-            local entry, err = current.save(f.box:GetText())
-            if not entry then
-                f.note:SetText("|cffff5050" .. err .. "|r")
-                return
-            end
-            f.box:SetText("")
-            f:Hide()
-            if current.rewrite then
-                QH:Print(('Your entry was rewritten: "%s".'):format(entry.title))
-            else
-                QH:Print(('"%s" was written into your journal.'):format(entry.title))
-            end
-            QH.Journal:Open()
-            QH.Journal:Refresh(entry.id)
-        end)
-        f.box:SetScript("OnTextChanged", function(box)
-            local n = #box:GetText()
-            f.note:SetText(n > 0 and ("%d characters pasted."):format(n) or "Waiting for the reply...")
-        end)
-        self.pasteFrame = f
+local function CreateBox(parent, name)
+    local scroll = CreateFrame("ScrollFrame", name, parent, "UIPanelScrollFrameTemplate")
+    local bg = parent:CreateTexture(nil, "BACKGROUND")
+    bg:SetPoint("TOPLEFT", scroll, "TOPLEFT", -4, 4)
+    bg:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 4, -4)
+    bg:SetColorTexture(0, 0, 0, 0.35)
+
+    local box = CreateFrame("EditBox", nil, scroll)
+    box:SetMultiLine(true)
+    box:SetAutoFocus(false)
+    box:SetMaxLetters(0)
+    box:SetFontObject("ChatFontNormal")
+    box:SetWidth(500)
+    box:SetScript("OnEscapePressed", function() parent:Hide() end)
+    box:SetScript("OnCursorChanged", function(_, _, y, _, height)
+        local offset = scroll:GetVerticalScroll()
+        local viewHeight = scroll:GetHeight()
+        if -y < offset then
+            scroll:SetVerticalScroll(-y)
+        elseif -y + height > offset + viewHeight then
+            scroll:SetVerticalScroll(-y + height - viewHeight)
+        end
+    end)
+    scroll:SetScrollChild(box)
+    scroll:SetScript("OnSizeChanged", function(_, width) box:SetWidth(width) end)
+
+    local clickCatcher = CreateFrame("Button", nil, parent)
+    clickCatcher:SetAllPoints(scroll)
+    clickCatcher:SetFrameLevel(scroll:GetFrameLevel() - 1)
+    clickCatcher:SetScript("OnClick", function() box:SetFocus() end)
+    return scroll, box
+end
+
+local function BuildWriteDialog()
+    local f = CreateFrame("Frame", "QuillAndHearthWriteDialog", UIParent, "ButtonFrameTemplate")
+    f:SetSize(640, 560)
+    f:SetPoint("CENTER", 0, 20)
+    f:SetFrameStrata("DIALOG")
+    f:SetToplevel(true)
+    f:SetClampedToScreen(true)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    if f.SetPortraitToAsset then f:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Book_09") end
+    table.insert(UISpecialFrames, "QuillAndHearthWriteDialog")
+    f:Hide()
+    local inset = f.Inset or f
+
+    -- Step 1
+    f.step1 = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.step1:SetPoint("TOPLEFT", inset, "TOPLEFT", 12, -10)
+    f.step1:SetPoint("RIGHT", inset, "RIGHT", -12, 0)
+    f.step1:SetJustifyH("LEFT")
+    f.step1:SetText("1. Copy this prompt (|cffffffffCtrl+C|r) and send it to any AI chat (ChatGPT, Gemini, Claude...).")
+
+    f.promptScroll, f.promptBox = CreateBox(f, "QuillAndHearthWritePrompt")
+    f.promptScroll:SetPoint("TOPLEFT", inset, "TOPLEFT", 14, -32)
+    f.promptScroll:SetPoint("RIGHT", inset, "RIGHT", -30, 0)
+    f.promptScroll:SetHeight(150)
+
+    f.selectAll = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.selectAll:SetSize(110, 22)
+    f.selectAll:SetPoint("TOPRIGHT", f.promptScroll, "BOTTOMRIGHT", 26, -6)
+    f.selectAll:SetText("Select all")
+    f.selectAll:SetScript("OnClick", function()
+        f.promptBox:SetFocus()
+        f.promptBox:HighlightText()
+    end)
+
+    -- Read-only prompt that stays selected.
+    f.promptBox:SetScript("OnTextChanged", function(box, userInput)
+        if userInput and box:GetText() ~= f.promptText then
+            box:SetText(f.promptText)
+            box:HighlightText()
+        end
+    end)
+    f.promptBox:SetScript("OnEditFocusGained", function(box) box:HighlightText() end)
+
+    -- Step 2
+    f.step2 = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.step2:SetPoint("TOPLEFT", f.promptScroll, "BOTTOMLEFT", -2, -36)
+    f.step2:SetPoint("RIGHT", inset, "RIGHT", -12, 0)
+    f.step2:SetJustifyH("LEFT")
+    f.step2:SetText("2. Paste the AI's whole reply here (|cffffffffCtrl+V|r). It saves by itself when it's recognised.")
+
+    f.replyScroll, f.replyBox = CreateBox(f, "QuillAndHearthWriteReply")
+    f.replyScroll:SetPoint("TOPLEFT", f.step2, "BOTTOMLEFT", 2, -8)
+    f.replyScroll:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -30, 12)
+
+    f.save = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.save:SetSize(150, 22)
+    f.save:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 4)
+
+    f.note = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.note:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 9)
+    f.note:SetPoint("RIGHT", f.save, "LEFT", -8, 0)
+    f.note:SetJustifyH("LEFT")
+    f.note:SetWordWrap(false)
+
+    local function TrySave(automatic)
+        local job = Bridge.job
+        if not job or f.saving then return end
+        local text = f.replyBox:GetText()
+        if strtrim(text) == "" then
+            f.note:SetText("|cffff5050Paste the AI's reply first.|r")
+            return
+        end
+        f.saving = true
+        local result, err = job.save(text)
+        f.saving = false
+        if not result then
+            if not automatic then f.note:SetText("|cffff5050" .. err .. "|r") end
+            return
+        end
+        f.replyBox:SetText("")
+        f:Hide()
+        QH:Print((TEXTS[job.kind] or TEXTS.entry).done:format(result.title or "Untitled"))
+        QH.Journal:Open()
+        QH.Journal:Refresh(job.select or result.id or true)
     end
-    local f = self.pasteFrame
+    f.save:SetScript("OnClick", function() TrySave(false) end)
+
+    -- C2: a complete reply (TITLE: + ENTRY:) saves itself right after pasting.
+    f.replyBox:SetScript("OnTextChanged", function(box, userInput)
+        local text = box:GetText()
+        if text == "" then
+            f.note:SetText("Waiting for the reply...")
+            return
+        end
+        f.note:SetText(("%d characters pasted."):format(#text))
+        local lower = text:lower()
+        if userInput and lower:find("title%s*:") and lower:find("entry%s*:") then
+            C_Timer.After(0.3, function()
+                if f:IsShown() and box:GetText() == text then TrySave(true) end
+            end)
+        end
+    end)
+    return f
+end
+
+--- Open the write dialog for a job (copy the prompt + paste the reply in one window).
+function Bridge:Show(job)
+    self.dialog = self.dialog or BuildWriteDialog()
+    local f = self.dialog
+    local texts = TEXTS[job.kind] or TEXTS.entry
     self.job = job
-    if job.rewrite then
-        if f.SetTitle then f:SetTitle("Paste the new version") end
-        f.instructions:SetText("Copy the AI's whole reply, click in the box below and press |cffffd100Ctrl+V|r. Saving |cffffd100replaces|r this entry's current text.")
-        f.primary:SetText("Replace entry")
-    else
-        if f.SetTitle then f:SetTitle("Paste the AI's reply") end
-        f.instructions:SetText("Copy the AI's whole reply, click in the box below and press |cffffd100Ctrl+V|r. Then save it to your journal.")
-        f.primary:SetText("Save to journal")
-    end
-    f.note:SetText("Waiting for the reply...")
+    if f.SetTitle then f:SetTitle(texts.title) end
+    f.save:SetText(texts.save)
+    f.promptText = job.prompt
+    f.promptBox:SetText(job.prompt)
+    f.replyBox:SetText("")
+    f.note:SetText(job.kind == "rewrite" and "Saving replaces this entry's current text." or "Waiting for the reply...")
     f:Show()
-    f.box:SetFocus()
+    f.promptScroll:SetVerticalScroll(0)
+    f.promptBox:SetFocus()
+    f.promptBox:HighlightText()
 end

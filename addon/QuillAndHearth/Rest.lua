@@ -74,6 +74,12 @@ local function UpdateCampAnchor()
         if x then
             QH.char.state.campAnchor = { x = x, y = y, instanceID = instanceID, t = GetServerTime() }
         end
+        -- Sitting by a fire is a moment worth remembering (at most once every 20 minutes).
+        local s = QH.char.state
+        if GetServerTime() - (s.lastCampEvent or 0) > 20 * 60 then
+            s.lastCampEvent = GetServerTime()
+            QH:Push("camp", {})
+        end
     end
     lastCampExpiration = expiration
 end
@@ -119,7 +125,8 @@ function QH:PushRest(kind, how)
     if last and last.type == "rest" then
         return -- nothing new happened since the last rest
     end
-    self:Push("rest", { kind = kind, how = how, home = GetBindLocation() })
+    local hour, minute = GetGameTime()
+    self:Push("rest", { kind = kind, how = how, home = GetBindLocation(), hour = hour, minute = minute })
 end
 
 ---------------------------------------------------------------------------
@@ -155,7 +162,7 @@ StaticPopupDialogs["QUILLANDHEARTH_REST"] = {
         local kind = QH:GetRestKind()
         if kind then
             QH:PushRest(kind, "manual")
-            QH.Journal:Open() -- the unwritten page is ready to write
+            QH.Journal:Open({ ritual = true }) -- the unwritten page is ready to write
         end
     end,
     timeout = 0,

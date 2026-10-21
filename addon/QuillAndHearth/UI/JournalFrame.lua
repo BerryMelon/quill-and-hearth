@@ -1,15 +1,17 @@
--- Quill & Hearth: the journal reader (stock Blizzard templates and textures only).
+-- Quill & Hearth: the journal (stock Blizzard templates and textures only).
 local _, QH = ...
 
 local Journal = {}
 QH.Journal = Journal
 
-local WIDTH, HEIGHT = 800, 560
-local LIST_WIDTH = 230
-local ROW_HEIGHT = 42
+local DEFAULT_W, DEFAULT_H = 880, 600
+local MIN_W, MIN_H = 720, 460
+local LIST_WIDTH = 240
+local ENTRY_ROW, HEADER_ROW = 42, 30
 local INK = { 0.24, 0.15, 0.08 }      -- dark brown text on parchment
-local INK_SOFT = { 0.42, 0.30, 0.18 }
-local PENDING = "pending"
+local INK_SOFT = { 0.45, 0.32, 0.20 }
+local PENDING, PEOPLE = "pending", "people"
+local MOODS = { "Weary", "Triumphant", "Troubled", "Grieving", "Hopeful", "Content" }
 
 ---------------------------------------------------------------------------
 -- Data helpers
@@ -44,24 +46,67 @@ local function PlaceText(restKind, zone, subzone)
     return (restKind == "campfire" and "By a campfire near " or "Written at ") .. place
 end
 
+local function AtlasExists(name)
+    return C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name) ~= nil
+end
+
+---------------------------------------------------------------------------
+-- Fonts (A1: text size setting)
+---------------------------------------------------------------------------
+local SIZES = {
+    small = { body = 13, title = 19, meta = 10, spacing = 2 },
+    medium = { body = 15, title = 22, meta = 11, spacing = 4 },
+    large = { body = 18, title = 25, meta = 12, spacing = 5 },
+}
+local fontCache = {}
+
+local function Font(kind, size)
+    local key = kind .. "_" .. size
+    if not fontCache[key] then
+        local base = (kind == "title" and QuestTitleFont) or (kind == "body" and QuestFont) or GameFontNormalSmall
+        local file, _, flags = base:GetFont()
+        local font = CreateFont("QuillAndHearthFont_" .. key)
+        font:SetFont(file, SIZES[size][kind], flags or "")
+        fontCache[key] = font
+    end
+    return fontCache[key]
+end
+
 ---------------------------------------------------------------------------
 -- Frame
 ---------------------------------------------------------------------------
-local PARCHMENT_ATLASES = { "QuestBG-Parchment", "QuestDetailsBackgrounds" }
-
 local function ApplyParchment(texture)
-    for _, atlas in ipairs(PARCHMENT_ATLASES) do
-        if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas) then
+    for _, atlas in ipairs({ "QuestBG-Parchment", "QuestDetailsBackgrounds" }) do
+        if AtlasExists(atlas) then
             texture:SetAtlas(atlas)
             return
         end
     end
-    texture:SetColorTexture(0.93, 0.87, 0.73) -- plain parchment colour as a last resort
+    texture:SetColorTexture(0.93, 0.87, 0.73)
+end
+
+local function SmallButton(parent, text, width)
+    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    b:SetSize(width or 90, 22)
+    b:SetText(text)
+    return b
+end
+
+local function Tooltip(widget, title, text)
+    widget:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(type(title) == "function" and title() or title)
+        local body = type(text) == "function" and text() or text
+        if body then GameTooltip:AddLine(body, 1, 1, 1, true) end
+        GameTooltip:Show()
+    end)
+    widget:SetScript("OnLeave", GameTooltip_Hide)
 end
 
 function Journal:Build()
     local f = CreateFrame("Frame", "QuillAndHearthJournal", UIParent, "ButtonFrameTemplate")
-    f:SetSize(WIDTH, HEIGHT)
+    local size = QH.db.journalSize
+    f:SetSize(size and size.w or DEFAULT_W, size and size.h or DEFAULT_H)
     f:SetPoint("CENTER")
     f:SetFrameStrata("HIGH")
     f:SetToplevel(true)
@@ -73,21 +118,56 @@ function Journal:Build()
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     if f.SetPortraitToAsset then f:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Book_09") end
     table.insert(UISpecialFrames, "QuillAndHearthJournal")
+    f:SetScript("OnHide", function() self:StopReading() end)
     f:Hide()
     self.frame = f
 
+    -- A4: resizable window
+    f:SetResizable(true)
+    if f.SetResizeBounds then f:SetResizeBounds(MIN_W, MIN_H, 1600, 1100) end
+    local grip = CreateFrame("Button", nil, f)
+    grip:SetSize(16, 16)
+    grip:SetPoint("BOTTOMRIGHT", -3, 3)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
+    grip:SetScript("OnMouseUp", function()
+        f:StopMovingOrSizing()
+        QH.db.journalSize = { w = math.floor(f:GetWidth()), h = math.floor(f:GetHeight()) }
+    end)
+
     local inset = f.Inset or f
+
+    -- Filters above the list (D2, D3)
+    self.favFilter = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    self.favFilter:SetSize(22, 22)
+    self.favFilter:SetPoint("TOPLEFT", inset, "TOPLEFT", 6, -4)
+    local favText = self.favFilter:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    favText:SetPoint("LEFT", self.favFilter, "RIGHT", 0, 0)
+    favText:SetText("Favourites")
+    self.favFilter:SetHitRectInsets(0, -favText:GetStringWidth() - 6, 0, 0)
+    self.favFilter:SetScript("OnClick", function() self:Refresh(self.selected) end)
+
+    self.hiddenFilter = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    self.hiddenFilter:SetSize(22, 22)
+    self.hiddenFilter:SetPoint("LEFT", favText, "RIGHT", 14, 0)
+    local hiddenText = self.hiddenFilter:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hiddenText:SetPoint("LEFT", self.hiddenFilter, "RIGHT", 0, 0)
+    hiddenText:SetText("Show hidden")
+    self.hiddenFilter:SetHitRectInsets(0, -hiddenText:GetStringWidth() - 6, 0, 0)
+    self.hiddenFilter:SetScript("OnClick", function() self:Refresh(self.selected) end)
 
     -- Entry list (left)
     local list = CreateFrame("ScrollFrame", "QuillAndHearthJournalList", f, "UIPanelScrollFrameTemplate")
-    list:SetPoint("TOPLEFT", inset, "TOPLEFT", 6, -6)
+    list:SetPoint("TOPLEFT", inset, "TOPLEFT", 6, -30)
     list:SetPoint("BOTTOMLEFT", inset, "BOTTOMLEFT", 6, 6)
     list:SetWidth(LIST_WIDTH)
     local listChild = CreateFrame("Frame", nil, list)
     listChild:SetSize(LIST_WIDTH, 1)
     list:SetScrollChild(listChild)
     self.listChild = listChild
-    self.rows = {}
+    self.entryRows, self.headerRows = {}, {}
 
     -- Reading page (right)
     local page = CreateFrame("Frame", nil, f)
@@ -98,227 +178,365 @@ function Journal:Build()
     ApplyParchment(bg)
     self.page = page
 
+    -- Page tools (top right): read aloud, edit, hide, favourite
+    self.favButton = SmallButton(page, "Favourite", 86)
+    self.favButton:SetPoint("TOPRIGHT", page, "TOPRIGHT", -36, -10)
+    self.hideButton = SmallButton(page, "Hide", 64)
+    self.hideButton:SetPoint("RIGHT", self.favButton, "LEFT", -4, 0)
+    self.editButton = SmallButton(page, "Edit", 56)
+    self.editButton:SetPoint("RIGHT", self.hideButton, "LEFT", -4, 0)
+    self.readButton = SmallButton(page, "Read aloud", 92)
+    self.readButton:SetPoint("RIGHT", self.editButton, "LEFT", -4, 0)
+    self.tools = { self.readButton, self.editButton, self.hideButton, self.favButton }
+
+    self.favButton:SetScript("OnClick", function()
+        local e = self.selectedEntry
+        if e then QH:SetEntryFavorite(e.id, not e.favorite) end
+    end)
+    self.hideButton:SetScript("OnClick", function()
+        local e = self.selectedEntry
+        if not e then return end
+        QH:SetEntryHidden(e.id, not e.hidden)
+        if not e.hidden then
+            QH:Print(('"%s" is hidden. Tick "Show hidden" to find it again.'):format(e.title or "Untitled"))
+        end
+    end)
+    self.editButton:SetScript("OnClick", function()
+        if self.selectedEntry then QH.EditDialog:Open(self.selectedEntry) end
+    end)
+    self.readButton:SetScript("OnClick", function() self:ToggleReading() end)
+    Tooltip(self.favButton, "Favourite", "Mark this entry as a favourite. Use the Favourites filter to see only those.")
+    Tooltip(self.hideButton, function() return self.selectedEntry and self.selectedEntry.hidden and "Unhide" or "Hide" end,
+        "Hidden entries leave the list and the export, but are never deleted.")
+    Tooltip(self.editButton, "Edit", "Change the title or the text by hand.")
+    Tooltip(self.readButton, "Read aloud", "Your computer's text-to-speech voice reads this entry.")
+
+    -- Text
     local scroll = CreateFrame("ScrollFrame", "QuillAndHearthJournalPage", page, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 22, -20)
-    scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -32, 16)
+    scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 30, -40)
+    scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -38, 16)
     local content = CreateFrame("Frame", nil, scroll)
     content:SetSize(1, 1)
     scroll:SetScrollChild(content)
     self.scroll, self.content = scroll, content
 
-    local function Text(font, color)
-        local fs = content:CreateFontString(nil, "OVERLAY", font)
+    local function Text(layer)
+        local fs = content:CreateFontString(nil, layer or "OVERLAY")
         fs:SetJustifyH("LEFT")
         fs:SetJustifyV("TOP")
-        if color then fs:SetTextColor(color[1], color[2], color[3]) end
         return fs
     end
-    self.dayText = Text("GameFontNormalSmall", INK_SOFT)
-    self.titleText = Text("QuestTitleFont", INK)
-    self.placeText = Text("GameFontNormalSmall", INK_SOFT)
-    self.bodyText = Text("QuestFont", INK)
-    if self.bodyText.SetSpacing then self.bodyText:SetSpacing(3) end
+    self.dayText = Text()
+    self.titleText = Text()
+    self.placeText = Text()
+    self.bodyText = Text()
+
+    -- A2: a soft divider under the header
+    self.divider = content:CreateTexture(nil, "ARTWORK")
+    self.divider:SetHeight(1)
+    self.dividerRight = content:CreateTexture(nil, "ARTWORK")
+    self.dividerRight:SetHeight(1)
 
     self.dayText:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0)
     self.titleText:SetPoint("TOPLEFT", self.dayText, "BOTTOMLEFT", 0, -6)
-    self.placeText:SetPoint("TOPLEFT", self.titleText, "BOTTOMLEFT", 0, -4)
-    self.bodyText:SetPoint("TOPLEFT", self.placeText, "BOTTOMLEFT", 0, -14)
+    self.placeText:SetPoint("TOPLEFT", self.titleText, "BOTTOMLEFT", 0, -6)
+    self.divider:SetPoint("TOPLEFT", self.placeText, "BOTTOMLEFT", 0, -12)
+    self.divider:SetPoint("RIGHT", content, "CENTER", 0, 0)
+    self.dividerRight:SetPoint("LEFT", self.divider, "RIGHT", 0, 0)
+    self.dividerRight:SetPoint("RIGHT", content, "RIGHT", -20, 0)
+    self.bodyText:SetPoint("TOPLEFT", self.divider, "BOTTOMLEFT", 0, -16)
+    if self.divider.SetGradient and CreateColor then
+        self.divider:SetColorTexture(1, 1, 1, 1)
+        self.divider:SetGradient("HORIZONTAL", CreateColor(INK[1], INK[2], INK[3], 0), CreateColor(INK[1], INK[2], INK[3], 0.55))
+        self.dividerRight:SetColorTexture(1, 1, 1, 1)
+        self.dividerRight:SetGradient("HORIZONTAL", CreateColor(INK[1], INK[2], INK[3], 0.55), CreateColor(INK[1], INK[2], INK[3], 0))
+    else
+        self.divider:SetColorTexture(INK[1], INK[2], INK[3], 0.4)
+        self.dividerRight:SetColorTexture(INK[1], INK[2], INK[3], 0.4)
+    end
 
     scroll:SetScript("OnSizeChanged", function(_, width)
         content:SetWidth(width)
         for _, fs in ipairs({ self.dayText, self.titleText, self.placeText, self.bodyText }) do
-            fs:SetWidth(width)
+            fs:SetWidth(width - 10)
         end
         self:LayoutPage()
     end)
 
-    -- Write buttons (only on the unwritten page)
-    self.copyButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-    self.copyButton:SetSize(128, 24)
-    self.copyButton:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 20, 14)
-    self.copyButton:SetText("1. Copy prompt")
-    self.copyButton:SetScript("OnClick", function()
-        if self.job then QH.Bridge:ShowPrompt(self.job) end
-    end)
-
-    self.pasteButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-    self.pasteButton:SetSize(128, 24)
-    self.pasteButton:SetPoint("LEFT", self.copyButton, "RIGHT", 8, 0)
-    self.pasteButton:SetText("2. Paste entry")
-    self.pasteButton:SetScript("OnClick", function()
-        if self.job then QH.Bridge:ShowPaste(self.job) end
-    end)
-
-    self.plainButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-    self.plainButton:SetSize(150, 24)
-    self.plainButton:SetPoint("LEFT", self.pasteButton, "RIGHT", 16, 0)
-    self.plainButton:SetText("Write it plainly")
-    self.plainButton:SetScript("OnClick", function()
-        if not self.pending then return end
-        local entry, err = QH:WriteTemplateEntry(self.pending)
-        if entry then
-            QH:Print(('"%s" was written into your journal.'):format(entry.title))
-        else
-            QH:Print(err)
-        end
-    end)
-    self.plainButton:SetScript("OnEnter", function(btn)
-        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
-        GameTooltip:SetText("Write it plainly")
-        GameTooltip:AddLine("Your character writes a simple entry right now, without any AI. Shorter and plainer than an AI-written one.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    self.plainButton:SetScript("OnLeave", GameTooltip_Hide)
-
-    local function WriteTooltip(btn, pendingTitle, pendingText, entryTitle, entryText)
-        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
-        if self.selected == PENDING then
-            GameTooltip:SetText(pendingTitle)
-            GameTooltip:AddLine(pendingText, 1, 1, 1, true)
-        else
-            GameTooltip:SetText(entryTitle)
-            GameTooltip:AddLine(entryText, 1, 1, 1, true)
-        end
-        GameTooltip:Show()
+    -- Mood (B2), shown on the unwritten page
+    self.moodLabel = page:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    self.moodLabel:SetTextColor(INK[1], INK[2], INK[3])
+    self.moodLabel:SetText("Tonight I feel:")
+    self.moodButtons = {}
+    local prev
+    for _, mood in ipairs(MOODS) do
+        local b = SmallButton(page, mood, 80)
+        b:SetHeight(20)
+        if prev then b:SetPoint("LEFT", prev, "RIGHT", 2, 0) else b:SetPoint("LEFT", self.moodLabel, "RIGHT", 6, 0) end
+        b:SetScript("OnClick", function()
+            local current = QH.char.state.pendingMood
+            QH:SetPendingMood(current ~= mood and mood or nil)
+            self:Refresh(PENDING)
+        end)
+        b.mood = mood
+        table.insert(self.moodButtons, b)
+        prev = b
     end
-    self.copyButton:SetScript("OnEnter", function(btn)
-        WriteTooltip(btn, "Copy prompt", "Copy the prompt into any AI chat (ChatGPT, Gemini, Claude...).",
-            "Copy prompt", "The prompt this entry was written from. Paste it into any AI chat to get a new version.")
-    end)
-    self.copyButton:SetScript("OnLeave", GameTooltip_Hide)
-    self.pasteButton:SetScript("OnEnter", function(btn)
-        WriteTooltip(btn, "Paste entry", "Paste the AI's reply to write tonight's entry.",
-            "Paste new version", "Paste a new AI reply to replace this entry's text.")
-    end)
-    self.pasteButton:SetScript("OnLeave", GameTooltip_Hide)
+    self.moodLabel:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 30, 50)
 
-    -- Footer: status + export
+    -- Bottom buttons (meaning depends on the page)
+    self.primaryButton = SmallButton(page, "", 160)
+    self.primaryButton:SetHeight(24)
+    self.primaryButton:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 28, 14)
+    self.secondaryButton = SmallButton(page, "", 150)
+    self.secondaryButton:SetHeight(24)
+    self.secondaryButton:SetPoint("LEFT", self.primaryButton, "RIGHT", 10, 0)
+    self.primaryButton:SetScript("OnClick", function() if self.primaryAction then self.primaryAction() end end)
+    self.secondaryButton:SetScript("OnClick", function() if self.secondaryAction then self.secondaryAction() end end)
+    Tooltip(self.primaryButton, function() return self.primaryTip and self.primaryTip[1] or "" end,
+        function() return self.primaryTip and self.primaryTip[2] end)
+    Tooltip(self.secondaryButton, function() return self.secondaryTip and self.secondaryTip[1] or "" end,
+        function() return self.secondaryTip and self.secondaryTip[2] end)
+
+    -- Footer: status, people, export, options
     self.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.status:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 9)
-    self.status:SetPoint("RIGHT", f, "RIGHT", -120, 0)
+    self.status:SetPoint("RIGHT", f, "RIGHT", -300, 0)
     self.status:SetJustifyH("LEFT")
     self.status:SetWordWrap(false)
 
-    self.export = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    self.export:SetSize(100, 22)
-    self.export:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 4)
-    self.export:SetText("Export")
-    self.export:SetScript("OnClick", function() QH:ShowExport() end)
-    self.export:SetScript("OnEnter", function(btn)
-        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
-        GameTooltip:SetText("Export journal")
-        GameTooltip:AddLine("Copy your whole journal as Markdown, to keep it or turn it into a PDF.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    self.export:SetScript("OnLeave", GameTooltip_Hide)
+    self.optionsButton = SmallButton(f, "Options", 84)
+    self.optionsButton:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 4)
+    self.optionsButton:SetScript("OnClick", function() QH:OpenSettings() end)
+    self.exportButton = SmallButton(f, "Export", 84)
+    self.exportButton:SetPoint("RIGHT", self.optionsButton, "LEFT", -4, 0)
+    self.exportButton:SetScript("OnClick", function() QH:ShowExport() end)
+    Tooltip(self.exportButton, "Export journal", "Copy your journal as Markdown, to keep it or turn it into a PDF.")
+    self.peopleButton = SmallButton(f, "People", 84)
+    self.peopleButton:SetPoint("RIGHT", self.exportButton, "LEFT", -4, 0)
+    self.peopleButton:SetScript("OnClick", function() self:Select(PEOPLE) end)
+    Tooltip(self.peopleButton, "People I've met", "Everyone who asked your character for help.")
 
     QH:Listen("ENTRY_WRITTEN", function()
         if self.frame:IsShown() then self:Refresh(self.selected ~= PENDING and self.selected or true) end
     end)
+    QH:Listen("SETTING_CHANGED", function(key)
+        if self.frame:IsShown() and (key == "textSize" or key == "moodPrompt" or key == "length") then
+            self:Refresh(self.selected)
+        end
+    end)
+
+    -- Read aloud finishes
+    local ttsWatcher = CreateFrame("Frame")
+    pcall(ttsWatcher.RegisterEvent, ttsWatcher, "VOICE_CHAT_TTS_PLAYBACK_FINISHED")
+    ttsWatcher:SetScript("OnEvent", function()
+        self.reading = false
+        self.readButton:SetText("Read aloud")
+    end)
 end
 
 ---------------------------------------------------------------------------
--- List
+-- List: unwritten page, chapter headers, entries (newest first)
 ---------------------------------------------------------------------------
-function Journal:GetRow(i)
-    if self.rows[i] then return self.rows[i] end
+function Journal:EntryRow(i)
+    if self.entryRows[i] then return self.entryRows[i] end
     local row = CreateFrame("Button", nil, self.listChild)
-    row:SetSize(LIST_WIDTH, ROW_HEIGHT)
-    row:SetPoint("TOPLEFT", self.listChild, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
-
+    row:SetSize(LIST_WIDTH, ENTRY_ROW)
     local highlight = row:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints()
     highlight:SetColorTexture(1, 1, 1, 0.08)
     row.selected = row:CreateTexture(nil, "BACKGROUND")
     row.selected:SetAllPoints()
     row.selected:SetColorTexture(1, 0.82, 0, 0.16)
-    row.selected:Hide()
+
+    row.icon = row:CreateTexture(nil, "ARTWORK")
+    row.icon:SetSize(16, 16)
+    row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", 10, -6)
+    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
     row.title = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.title:SetPoint("TOPLEFT", row, "TOPLEFT", 8, -6)
-    row.title:SetPoint("RIGHT", row, "RIGHT", -34, 0)
+    row.title:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+    row.title:SetPoint("RIGHT", row, "RIGHT", -40, 0)
     row.title:SetJustifyH("LEFT")
     row.title:SetWordWrap(false)
 
     row.sub = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.sub:SetPoint("TOPLEFT", row.title, "BOTTOMLEFT", 0, -4)
+    row.sub:SetPoint("TOPLEFT", row.icon, "BOTTOMLEFT", 0, -6)
     row.sub:SetPoint("RIGHT", row, "RIGHT", -8, 0)
     row.sub:SetJustifyH("LEFT")
     row.sub:SetWordWrap(false)
 
     row.tag = row:CreateFontString(nil, "OVERLAY", "GameFontGreenSmall")
-    row.tag:SetPoint("TOPRIGHT", row, "TOPRIGHT", -6, -7)
+    row.tag:SetPoint("TOPRIGHT", row, "TOPRIGHT", -6, -8)
+
+    row.star = row:CreateTexture(nil, "OVERLAY")
+    row.star:SetSize(14, 14)
+    row.star:SetPoint("TOPRIGHT", row, "TOPRIGHT", -6, -7)
+    if AtlasExists("PetJournal-FavoritesIcon") then row.star:SetAtlas("PetJournal-FavoritesIcon") else row.star:SetTexture("Interface\\Common\\ReputationStar") end
 
     row:SetScript("OnClick", function() self:Select(row.key) end)
-    self.rows[i] = row
+    self.entryRows[i] = row
     return row
 end
 
+function Journal:HeaderRow(i)
+    if self.headerRows[i] then return self.headerRows[i] end
+    local row = CreateFrame("Button", nil, self.listChild)
+    row:SetSize(LIST_WIDTH, HEADER_ROW)
+    local bg = row:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.35, 0.25, 0.1, 0.35)
+    row.selected = row:CreateTexture(nil, "BORDER")
+    row.selected:SetAllPoints()
+    row.selected:SetColorTexture(1, 0.82, 0, 0.18)
+    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    highlight:SetColorTexture(1, 1, 1, 0.08)
+    row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.text:SetPoint("LEFT", 8, 0)
+    row.text:SetPoint("RIGHT", -8, 0)
+    row.text:SetJustifyH("LEFT")
+    row.text:SetWordWrap(false)
+    row:SetScript("OnClick", function() self:Select(row.key) end)
+    self.headerRows[i] = row
+    return row
+end
+
+local function Visible(e, favOnly, showHidden)
+    if e.hidden and not showHidden then return false end
+    if favOnly and not e.favorite then return false end
+    return true
+end
+
 function Journal:RefreshList()
-    local entries = QH:GetEntries()
+    local favOnly = self.favFilter:GetChecked()
+    local showHidden = self.hiddenFilter:GetChecked()
     local seenBefore = self.seenBefore or 0
-    local i = 0
+    local y, ei, hi = 0, 0, 0
+
+    local function placeEntryRow(key, title, sub, icon, tag, star, dim)
+        ei = ei + 1
+        local row = self:EntryRow(ei)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", self.listChild, "TOPLEFT", 0, -y)
+        row.key = key
+        row.title:SetText(title)
+        row.title:SetAlpha(dim and 0.5 or 1)
+        row.sub:SetText(sub)
+        row.icon:SetTexture(icon)
+        row.tag:SetText(tag or "")
+        row.tag:SetShown(tag ~= nil and not star)
+        row.star:SetShown(star == true)
+        row.selected:SetShown(self.selected == key)
+        row:Show()
+        y = y + ENTRY_ROW
+    end
 
     if self.pending then
-        i = 1
         local d = self.pending.digest
-        local row = self:GetRow(i)
-        row.key = PENDING
-        row.title:SetText("|cffffffffAn unwritten page|r")
-        row.sub:SetText(DayLabel(d.startDay, d.endDay) .. "  |cff999999" .. (d.lastRest.zone or "") .. "|r")
-        row.tag:SetText("|cffffd100INK|r")
-        row.tag:Show()
-        row.selected:SetShown(self.selected == PENDING)
-        row:Show()
+        placeEntryRow(PENDING, "|cffffffffAn unwritten page|r",
+            DayLabel(d.startDay, d.endDay) .. "  |cff999999" .. (d.lastRest.zone or "") .. "|r",
+            "Interface\\Icons\\INV_Misc_Note_01", "|cffffd100INK|r")
     end
 
-    -- Newest first.
-    for n = #entries, 1, -1 do
-        local e = entries[n]
-        i = i + 1
-        local row = self:GetRow(i)
-        row.key = e.id
-        row.title:SetText(e.title or "Untitled")
-        row.sub:SetText(DayLabel(e.day, e.dayEnd) .. (e.zone and ("  |cff999999" .. e.zone .. "|r") or ""))
-        row.tag:SetText("NEW")
-        row.tag:SetShown((e.t or 0) > seenBefore)
-        row.selected:SetShown(self.selected == e.id)
-        row:Show()
+    local chapters = QH:GetChapters()
+    for ci = #chapters, 1, -1 do
+        local ch = chapters[ci]
+        local shown = {}
+        for n = #ch.entries, 1, -1 do
+            local e = ch.entries[n]
+            if Visible(e, favOnly, showHidden) then table.insert(shown, e) end
+        end
+        if #shown > 0 or not favOnly then
+            hi = hi + 1
+            local header = self:HeaderRow(hi)
+            header:ClearAllPoints()
+            header:SetPoint("TOPLEFT", self.listChild, "TOPLEFT", 0, -y)
+            header.key = "chapter:" .. ch.key
+            header.text:SetText(("Chapter %s: %s"):format(ch.numeral, ch.title))
+            header.selected:SetShown(self.selected == header.key)
+            header:Show()
+            y = y + HEADER_ROW
+        end
+        for _, e in ipairs(shown) do
+            local icon = e.restKind == "campfire" and "Interface\\Icons\\Spell_Fire_Fire" or "Interface\\Icons\\INV_Misc_Rune_01"
+            local isNew = (e.t or 0) > seenBefore
+            placeEntryRow(e.id, e.title or "Untitled",
+                DayLabel(e.day, e.dayEnd) .. (e.zone and ("  |cff999999" .. e.zone .. "|r") or ""),
+                icon, isNew and "NEW" or nil, e.favorite == true, e.hidden)
+        end
     end
-    for n = i + 1, #self.rows do self.rows[n]:Hide() end
-    self.listChild:SetHeight(math.max(1, i * ROW_HEIGHT))
+
+    for n = ei + 1, #self.entryRows do self.entryRows[n]:Hide() end
+    for n = hi + 1, #self.headerRows do self.headerRows[n]:Hide() end
+    self.listChild:SetHeight(math.max(1, y))
 end
 
 ---------------------------------------------------------------------------
 -- Page
 ---------------------------------------------------------------------------
+function Journal:ApplyFonts()
+    local size = QH:GetSetting("textSize")
+    if not SIZES[size] then size = "medium" end
+    self.dayText:SetFontObject(Font("meta", size))
+    self.titleText:SetFontObject(Font("title", size))
+    self.placeText:SetFontObject(Font("meta", size))
+    self.bodyText:SetFontObject(Font("body", size))
+    if self.bodyText.SetSpacing then self.bodyText:SetSpacing(SIZES[size].spacing) end
+    self.dayText:SetTextColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
+    self.titleText:SetTextColor(INK[1], INK[2], INK[3])
+    self.placeText:SetTextColor(INK_SOFT[1], INK_SOFT[2], INK_SOFT[3])
+    self.bodyText:SetTextColor(INK[1], INK[2], INK[3])
+end
+
 function Journal:LayoutPage()
-    local height = 0
+    local height = 40
     for _, fs in ipairs({ self.dayText, self.titleText, self.placeText, self.bodyText }) do
-        height = height + fs:GetStringHeight() + 10
+        height = height + fs:GetStringHeight() + 12
     end
     self.content:SetHeight(math.max(1, height))
 end
 
---- mode: "pending" (unwritten page: copy / paste / write plainly), "entry" (written entry with a
---- stored prompt: copy / paste a new version), or nil (no buttons).
-function Journal:ShowText(day, title, place, body, mode)
+--- Show text on the page. buttons: { primary = {label, action, tip}, secondary = {...} }; tools: show the
+--- read/edit/hide/favourite buttons; mood: show the mood row.
+function Journal:ShowPage(day, title, place, body, opts)
+    opts = opts or {}
+    self:StopReading()
+    self:ApplyFonts()
     self.dayText:SetText(day or "")
     self.titleText:SetText(title or "")
     self.placeText:SetText(place or "")
     self.bodyText:SetText(body or "")
-    local showButtons = mode == "pending" or mode == "entry"
-    self.copyButton:SetShown(showButtons)
-    self.pasteButton:SetShown(showButtons)
-    self.plainButton:SetShown(mode == "pending")
-    if mode == "pending" then
-        self.copyButton:SetText("1. Copy prompt")
-        self.pasteButton:SetText("2. Paste entry")
-    elseif mode == "entry" then
-        self.copyButton:SetText("Copy prompt")
-        self.pasteButton:SetText("Paste new version")
+
+    for _, b in ipairs(self.tools) do b:SetShown(opts.tools == true) end
+    local moodShown = opts.mood == true
+    self.moodLabel:SetShown(moodShown)
+    local current = QH.char.state.pendingMood
+    for _, b in ipairs(self.moodButtons) do
+        b:SetShown(moodShown)
+        if b.mood == current then b:LockHighlight() else b:UnlockHighlight() end
     end
-    self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -32, showButtons and 48 or 16)
+
+    local function setup(button, spec, which)
+        if spec then
+            button:SetText(spec[1])
+            button:SetWidth(math.max(120, button:GetTextWidth() + 30))
+            button:Show()
+            self[which .. "Action"] = spec[2]
+            self[which .. "Tip"] = spec[3]
+        else
+            button:Hide()
+            self[which .. "Action"] = nil
+        end
+    end
+    setup(self.primaryButton, opts.primary, "primary")
+    setup(self.secondaryButton, opts.secondary, "secondary")
+
+    local bottom = 16
+    if opts.primary or opts.secondary then bottom = 48 end
+    if moodShown then bottom = 78 end
+    self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -38, bottom)
+    self.scroll:SetPoint("TOPLEFT", self.page, "TOPLEFT", 30, opts.tools and -40 or -22)
     self:LayoutPage()
     self.scroll:SetVerticalScroll(0)
 end
@@ -330,9 +548,9 @@ local function SummarizeDigest(d)
             local what = m.note and ('your note: "' .. m.note .. '"')
                 or (m.title and (m.kind .. ': "' .. m.title .. '"') or m.kind)
             table.insert(lines, ("- %s |cff7a5a3a(%s)|r"):format(what, m.place))
-            if #lines >= 8 then break end
+            if #lines >= 10 then break end
         end
-        if #lines >= 8 then break end
+        if #lines >= 10 then break end
     end
     for _, c in ipairs(d.collapsed) do table.insert(lines, "- " .. c) end
     if #lines == 0 then
@@ -348,14 +566,92 @@ end
 function Journal:ShowPendingPage()
     local d = self.pending.digest
     local nights = d.nights > 1 and (" (%d nights)"):format(d.nights) or ""
-    local body = "Since your last entry:\n" .. SummarizeDigest(d) .. "\n\n"
-    body = body .. "|cff5a3a1aTo write it with any AI chat (ChatGPT, Gemini, Claude...):|r\n"
-        .. "1. Click |cff5a3a1aCopy prompt|r and copy the text (Ctrl+C).\n"
-        .. "2. Paste it into the AI chat and send it.\n"
-        .. "3. Copy the AI's whole reply, click |cff5a3a1aPaste entry|r, paste it (Ctrl+V) and save.\n\n"
-        .. "Or click |cff5a3a1aWrite it plainly|r for a simple entry without any AI."
-    self:ShowText(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
-        PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, "pending")
+    local body = "Since your last entry:\n" .. SummarizeDigest(d)
+    if d.reflections and #d.reflections > 0 then
+        body = body .. "\n\n|cff5a3a1aA milestone:|r " .. table.concat(d.reflections, ", ") .. ". The entry will look back on how far you've come."
+    end
+    body = body .. "\n\n|cff5a3a1aWrite with AI|r opens the prompt to copy into any AI chat (ChatGPT, Gemini, Claude...) and a box to paste the reply.\n"
+        .. "|cff5a3a1aWrite it plainly|r writes a simple entry right now, without any AI. You can still rewrite it with AI later."
+    self:ShowPage(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
+        PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, {
+            mood = QH:GetSetting("moodPrompt"),
+            primary = { "Write with AI", function() QH.Bridge:Show(self.job) end,
+                { "Write with AI", "Copy the prompt into any AI chat, then paste the reply. All in one window." } },
+            secondary = { "Write it plainly", function()
+                local entry, err = QH:WriteTemplateEntry(self.pending)
+                QH:Print(entry and ('"%s" was written into your journal.'):format(entry.title) or err)
+            end, { "Write it plainly", "Your character writes a simple entry right now, without any AI." } },
+        })
+end
+
+function Journal:ShowEntryPage(e)
+    local notes = {}
+    if e.level then table.insert(notes, ("level %d"):format(e.level)) end
+    if e.mood then table.insert(notes, e.mood:lower()) end
+    if e.source == "template" then table.insert(notes, "written plainly") end
+    if e.rewrittenAt then table.insert(notes, "rewritten") end
+    if e.editedAt then table.insert(notes, "edited") end
+    if e.hidden then table.insert(notes, "hidden") end
+    local place = PlaceText(e.restKind, e.zone, e.subzone)
+    if #notes > 0 then place = place .. "  |cff8a7a6a(" .. table.concat(notes, ", ") .. ")|r" end
+    self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, e.body, {
+        tools = true,
+        primary = e.prompt and { "Rewrite with AI", function() QH.Bridge:Show(QH.Bridge.RewriteJob(e)) end,
+            { "Rewrite with AI", "Get a new version of this entry from any AI chat, using the prompt it was written from." } } or nil,
+    })
+    self.favButton:SetText(e.favorite and "Unfavourite" or "Favourite")
+    self.hideButton:SetText(e.hidden and "Unhide" or "Hide")
+    self.readButton:SetShown(C_VoiceChat ~= nil and C_VoiceChat.SpeakText ~= nil)
+end
+
+function Journal:ShowChapterPage(ch)
+    local lines = {}
+    if ch.summary then
+        table.insert(lines, ch.summary)
+        table.insert(lines, "")
+    else
+        table.insert(lines, "|cff8a7a6aThis chapter has no summary yet.|r")
+        table.insert(lines, "")
+    end
+    table.insert(lines, "|cff5a3a1aIn this chapter:|r")
+    for _, e in ipairs(ch.entries) do
+        if not e.hidden then
+            table.insert(lines, ("- %s: %s"):format(DayLabel(e.day, e.dayEnd), e.title or "Untitled"))
+        end
+    end
+    local levels = ch.minLevel and (ch.minLevel == ch.maxLevel and ("level %d"):format(ch.minLevel)
+        or ("levels %d-%d"):format(ch.minLevel, ch.maxLevel)) or nil
+    local meta = table.concat({ DayLabel(ch.firstDay, ch.lastDay), levels or nil }, " · ")
+    local zones = table.concat(ch.zoneOrder or {}, ", ")
+    self:ShowPage(("Chapter %s"):format(ch.numeral) .. (ch.isOpen and "  |cff8a7a6a(still being written)|r" or ""),
+        ch.title, meta .. (zones ~= "" and ("  ·  " .. zones) or ""), table.concat(lines, "\n"), {
+            primary = { ch.summary and "Rewrite summary with AI" or "Summary with AI",
+                function() QH.Bridge:Show(QH.Bridge.ChapterJob(ch)) end,
+                { "Chapter summary with AI", "Copy a prompt with this chapter's entries into any AI chat for a title and a summary." } },
+            secondary = { "Write it plainly", function() QH:WriteChapterPlainly(ch.key) end,
+                { "Write it plainly", "A simple summary listing what happened, without any AI." } },
+        })
+end
+
+function Journal:ShowPeoplePage()
+    local people = QH.char.people or {}
+    local list = {}
+    for name, p in pairs(people) do table.insert(list, { name = name, p = p }) end
+    table.sort(list, function(a, b) return (a.p.last or 0) > (b.p.last or 0) end)
+    local lines = {}
+    if #list == 0 then
+        table.insert(lines, "No one yet. Everyone who asks for your help will be remembered here.")
+    end
+    for _, item in ipairs(list) do
+        local p = item.p
+        local line = ("|cff5a3a1a%s|r"):format(item.name)
+        if p.zone then line = line .. ("  |cff8a7a6a(met in %s)|r"):format(p.zone) end
+        if p.tasks and #p.tasks > 0 then
+            line = line .. "\n    " .. table.concat(p.tasks, ", ")
+        end
+        table.insert(lines, line)
+    end
+    self:ShowPage("", "People I've met", ("%d %s"):format(#list, #list == 1 and "person" or "people"), table.concat(lines, "\n\n"), {})
 end
 
 function Journal:ShowEmptyPage()
@@ -363,30 +659,31 @@ function Journal:ShowEmptyPage()
     local body = ("Your journal is still empty.\n\n%d %s been recorded since you began. "
         .. "Rest at an inn, in a city, or by a campfire, and your character will be ready to write about it.")
         :format(moments, moments == 1 and "moment has" or "moments have")
-    self:ShowText("", "A blank page", "", body, nil)
+    self:ShowPage("", "A blank page", "", body, {})
 end
 
-function Journal:ShowEntryPage(e)
-    local notes = {}
-    if e.level then table.insert(notes, ("level %d"):format(e.level)) end
-    if e.source == "template" then table.insert(notes, "written plainly") end
-    if e.rewritten or e.rewrittenAt then table.insert(notes, "rewritten") end
-    local place = PlaceText(e.restKind, e.zone, e.subzone)
-    if #notes > 0 then place = place .. "  |cff999999(" .. table.concat(notes, ", ") .. ")|r" end
-    self:ShowText(DayLabel(e.day, e.dayEnd), e.title, place, e.body, e.prompt and "entry" or nil)
-end
-
---- key: PENDING or an entry id.
+--- key: PENDING, PEOPLE, an entry id, or "chapter:<key>".
 function Journal:Select(key)
-    self.job = nil
-    local entry = key and key ~= PENDING and QH:FindEntry(key)
+    self.job, self.selectedEntry = nil, nil
     if key == PENDING and self.pending then
         self.selected = PENDING
         self.job = QH.Bridge.PendingJob(self.pending)
         self:ShowPendingPage()
-    elseif entry then
+    elseif key == PEOPLE then
+        self.selected = PEOPLE
+        self:ShowPeoplePage()
+    elseif type(key) == "string" and key:find("^chapter:") then
+        local ch = QH:FindChapter(key:sub(9))
+        if ch then
+            self.selected = key
+            self:ShowChapterPage(ch)
+        else
+            return self:Select(nil)
+        end
+    elseif key and QH:FindEntry(key) then
+        local entry = QH:FindEntry(key)
         self.selected = entry.id
-        if entry.prompt then self.job = QH.Bridge.RewriteJob(entry) end
+        self.selectedEntry = entry
         self:ShowEntryPage(entry)
     else
         self.selected = nil
@@ -396,13 +693,40 @@ function Journal:Select(key)
 end
 
 ---------------------------------------------------------------------------
+-- A5: read aloud
+---------------------------------------------------------------------------
+function Journal:StopReading()
+    if self.reading and C_VoiceChat and C_VoiceChat.StopSpeakingText then C_VoiceChat.StopSpeakingText() end
+    self.reading = false
+    if self.readButton then self.readButton:SetText("Read aloud") end
+end
+
+function Journal:ToggleReading()
+    if self.reading then return self:StopReading() end
+    local e = self.selectedEntry
+    if not (e and C_VoiceChat and C_VoiceChat.SpeakText) then return end
+    local voices = C_VoiceChat.GetTtsVoices and C_VoiceChat.GetTtsVoices() or {}
+    local voice = voices[1]
+    if not voice then
+        QH:Print("No text-to-speech voice is available on this computer.")
+        return
+    end
+    local text = ((e.title or "") .. ".\n\n" .. (e.body or "")):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    local ok = pcall(C_VoiceChat.SpeakText, voice.voiceID, text, QH:GetSetting("ttsRate") or 0, 100, false)
+    if ok then
+        self.reading = true
+        self.readButton:SetText("Stop")
+    end
+end
+
+---------------------------------------------------------------------------
 -- Status
 ---------------------------------------------------------------------------
 function Journal:RefreshStatus()
     local unwritten, moments = QH:GetPendingInfo()
     local text
     if unwritten > 0 then
-        text = "|cffffd100An unwritten page is waiting.|r Copy the prompt into any AI chat, or write it plainly."
+        text = "|cffffd100An unwritten page is waiting.|r Write it with AI, or plainly."
     elseif moments > 0 then
         text = ("%d %s since your last rest. Rest at an inn, a city or a campfire to write.")
             :format(moments, moments == 1 and "moment" or "moments")
@@ -415,24 +739,29 @@ end
 ---------------------------------------------------------------------------
 -- Open / refresh
 ---------------------------------------------------------------------------
---- Rebuild everything. `target`: an entry id to show, `true` for the newest entry, or nil to
---- show the unwritten page first (if there is one).
+--- target: a selection key (entry id, "chapter:..", PEOPLE), `true` for the newest entry, or nil
+--- to show the unwritten page first (if there is one).
 function Journal:Refresh(target)
     self.pending = QH:GetPendingWrite()
     local entries = QH:GetEntries()
-    if type(target) == "string" and QH:FindEntry(target) then
+    if type(target) == "string" and target ~= PENDING then
         self:Select(target)
-    elseif self.pending and not target then
+    elseif self.pending and (not target or target == PENDING) then
         self:Select(PENDING)
     elseif #entries > 0 then
-        self:Select(entries[#entries].id)
+        local newest
+        for n = #entries, 1, -1 do
+            if not entries[n].hidden then newest = entries[n]; break end
+        end
+        self:Select(newest and newest.id or nil)
     else
         self:Select(nil)
     end
     self:RefreshStatus()
 end
 
-function Journal:Open()
+--- opts.ritual: play the writing ritual (book sound, /read emote) if enabled.
+function Journal:Open(opts)
     if not QH.char then return end
     if not self.frame then self:Build() end
     local profile = QH:GetProfile()
@@ -441,10 +770,17 @@ function Journal:Open()
 
     local state = QH.char.state
     self.seenBefore = self.seenBefore or state.lastSeenEntryT or 0
-    self:Refresh(false)
+    local wasShown = self.frame:IsShown()
+    self:Refresh(nil)
     self.frame:Show()
 
-    -- Mark everything as seen (NEW tags stay visible for this session).
+    if opts and opts.ritual and QH:GetSetting("ritual") and not wasShown then
+        if PlaySound and SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_OPEN then PlaySound(SOUNDKIT.IG_SPELLBOOK_OPEN) end
+        if opts.emote ~= false and DoEmote and not InCombatLockdown() then pcall(DoEmote, "READ") end
+    elseif not wasShown and PlaySound and SOUNDKIT and SOUNDKIT.IG_QUEST_LOG_OPEN then
+        PlaySound(SOUNDKIT.IG_QUEST_LOG_OPEN)
+    end
+
     local entries = QH:GetEntries()
     local newest = entries[#entries]
     if newest and newest.t then state.lastSeenEntryT = math.max(state.lastSeenEntryT or 0, newest.t) end

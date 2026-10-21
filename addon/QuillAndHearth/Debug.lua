@@ -20,6 +20,14 @@ local function Describe(e)
         return ("REST (%s, %s)"):format(tostring(e.kind), tostring(e.how))
     elseif t == "note" then
         return ('note "%s"'):format(tostring(e.text))
+    elseif t == "loot" then
+        return ("loot %s (%s)"):format(tostring(e.item), tostring(e.quality))
+    elseif t == "reputation" then
+        return ("reputation %s: %s"):format(tostring(e.faction), tostring(e.standing))
+    elseif t == "skill" then
+        return ("skill %s -> %s"):format(tostring(e.skill), tostring(e.rank))
+    elseif t == "achievement" then
+        return ("achievement %s"):format(tostring(e.achievement))
     elseif t == "level" then
         return "level up -> " .. tostring(e.level)
     elseif t == "flight_start" or t == "flight_end" then
