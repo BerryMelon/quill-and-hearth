@@ -32,6 +32,12 @@
 2. Pending in-game tests: the TRP3 import, and the campfire fix (paste the `/quill restcheck` buff list).
 3. Phase 5 polish: chapters, entry rewrite/hide, UI redesign after v1 feedback.
 
+## Built: v0.6.0 (template writer + notes), not yet tested in game
+- `Templates.lua`: in-game template writer (no AI). Voice banks for Plain/Formal/Poetic/Terse, closings by temperament, told in chronological order with day transitions (next day / days later), voyages, first visits, flights, hearthstone, deaths, dungeons with companions, fear lines (hooks), minor list (max 3), errands, notes; deterministic per rest (seeded). The journal's unwritten page has a third button: **Write it plainly**. Template entries add a short line to the AI story memory.
+- `Notes.lua`: `/quill note [text]` or the minimap menu's **Add a note...** (multi-line dialog, 500 chars). Notes are `note` events, always KEY (outside the cap), shown in the prompt as `In their words: ...`, used by the companion too.
+- Prompt (in game + companion): MINOR moments get a sentence at most and may be left out entirely to stay within the length; notes always included.
+- Tests: 14 Lua tests (incl. template samples), 14 companion tests; live Gemini check with a note, voyage, death and fear passed.
+
 ## Done: v0.5.0 (no companion needed: copy-paste bridge). Tested on retail 2026-10-21: the copy-paste flow works well and the UI looks good
 - The addon also loads on retail (Interface `120105, 16001`), linked into `_retail_\Interface\AddOns` for testing while the Forever beta is down.
 - Decision (2026-10-21): tiered approach (see NO_COMPANION_OPTIONS.md). 1) The copy-paste bridge is now the default (done). 2) Next: an in-game template writer (C1) so entries work with no AI at all, later grown into a pre-written snippet library (C2). 3) The companion is optional.

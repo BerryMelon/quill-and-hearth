@@ -111,8 +111,88 @@ end)
 
 print(("%d Lua tests passed"):format(passed))
 
--- Expose a real prompt for the live check (tools/live-prompt-check).
-local d = P.BuildDigest(P.FindSittings(flonsus.events, 0), 1, P.DeriveHooks({ fear = "gnolls" }))
-SAMPLE_PROMPT = P.BuildPrompt({ name = "Flonsus Vire", class = "Priest", traits = { temperament = "Brooding", voice = "Formal" }, fear = "gnolls" },
-    flonsus.meta, "", d, {})
+---------------------------------------------------------------------------
+-- Notes + template writer
+---------------------------------------------------------------------------
+assert(load(TEMPLATES_SRC, "=Templates.lua"))("QuillAndHearth", QH)
+local T = QH.Templates
+
+-- A richer, scripted log: notes, a voyage, a death, a fear-touching quest, small errands.
+local function Log()
+    local seq, t = 0, 1800000000
+    local events = {}
+    local function ev(e)
+        seq, t = seq + 1, t + 300
+        e.seq, e.t = seq, t
+        e.zone = e.zone or "Westfall"
+        e.continent = e.continent or "Eastern Kingdoms"
+        events[#events + 1] = e
+    end
+    ev({ type = "quest_accept", questID = 1, title = "Boar Trouble", text = "The Rockhide boars are tearing up the fields. Thin their numbers. Farmers are scared." })
+    ev({ type = "quest_done", questID = 1, title = "Boar Trouble", rewardText = "You did it! The fields are safe again, and the Saldeans thank you from the bottom of their hearts for this." })
+    for i = 1, 6 do ev({ type = "quest_done", questID = 10 + i, title = "Errand " .. i }) end
+    ev({ type = "note", text = "I keep the letter from my sister in my coat. I haven't opened it." })
+    ev({ type = "death" })
+    ev({ type = "zone", from = "Wetlands", zone = "Darkshore", continent = "Kalimdor", fromContinent = "Eastern Kingdoms", continentChanged = true })
+    ev({ type = "rest", kind = "rested", zone = "Darkshore", subzone = "Auberdine" })
+    return events
+end
+
+test("Notes are always KEY moments and appear in the prompt", function()
+    local events = Log()
+    local d = P.BuildDigest(P.FindSittings(events, 0), 1, {})
+    local note
+    for _, th in ipairs(d.threads) do
+        for _, m in ipairs(th.moments) do if m.note then note = m end end
+    end
+    assert(note, "note moment missing")
+    eq(note.importance, "KEY")
+    local prompt = P.BuildPrompt(nil, { name = "Ari", race = "Human", class = "Warrior" }, "", d, {})
+    assert(prompt:find('In their words: "I keep the letter from my sister'), "note not in prompt")
+    assert(prompt:find("leave out MINOR moments"), "length rule missing")
+end)
+
+test("Template writer covers voyage, fear, death, errands and notes", function()
+    local events = Log()
+    local d = P.BuildDigest(P.FindSittings(events, 0), 5, P.DeriveHooks({ fear = "boars" }))
+    local w = T.Write(d, { name = "Ari", traits = { voice = "Plain", temperament = "Brooding" } })
+    assert(w.title and w.title ~= "", "no title")
+    local body = w.body
+    assert(body:find("Auberdine"), "opening should name the rest place")
+    assert(body:find("Kalimdor"), "voyage missing")
+    assert(body:find("Boar Trouble"), "key task missing")
+    assert(body:lower():find("boar"), "fear line missing")
+    assert(body:find("spirit healer"), "death missing")
+    assert(body:find("Westfall"), "errands line missing")
+    assert(body:find("letter from my sister"), "note missing")
+    assert(not body:find("{"), "unfilled placeholder: " .. body)
+    print("\n--- sample template entry (Plain, Brooding) ---\nTITLE: " .. w.title .. "\n\n" .. body .. "\n")
+end)
+
+test("Template writer is deterministic and voice-aware", function()
+    local d = P.BuildDigest(P.FindSittings(Log(), 0), 1, {})
+    local a = T.Write(d, { traits = { voice = "Terse" } })
+    local b = T.Write(d, { traits = { voice = "Terse" } })
+    eq(a.body, b.body, "same night, same text")
+    local poetic = T.Write(d, { traits = { voice = "Poetic", temperament = "Cheerful" } })
+    assert(poetic.body ~= a.body, "voices should differ")
+    print("--- sample template entry (Terse) ---\nTITLE: " .. a.title .. "\n\n" .. a.body .. "\n")
+end)
+
+test("Template writer handles a quiet night and no profile", function()
+    local d = P.BuildDigest({ { events = {}, rest = { seq = 3, t = 1, type = "rest", kind = "campfire", zone = "Durotar" } } }, 2, {})
+    local w = T.Write(d, nil)
+    assert(w.body:find("Durotar"), "rest place missing")
+    assert(not w.body:find("{"), "unfilled placeholder")
+end)
+
+print(("%d Lua tests passed in total"):format(passed))
+
+-- The live check uses the richer log (note, voyage, death, fear, errands).
+do
+    local d = P.BuildDigest(P.FindSittings(Log(), 0), 1, P.DeriveHooks({ fear = "boars" }))
+    SAMPLE_PROMPT = P.BuildPrompt({ name = "Ari Thorne", class = "Warrior", traits = { temperament = "Brooding", voice = "Plain" }, fear = "boars" },
+        { name = "Ari", race = "Human", sex = 3, faction = "Alliance" }, "", d, {})
+end
+
 PARSE = P.ParseReply

@@ -17,6 +17,7 @@ export interface DigestMoment {
   place: string;
   story?: string;
   outcome?: string;
+  note?: string;
   companions?: string[];
   touches?: string[];
   why: string[];
@@ -141,6 +142,11 @@ export function buildDigest(events: QHEvent[], rest: QHEvent, startDay: number, 
     };
     if (e.type === "level") moment.title = `Reached level ${e.level}`;
     if (e.type === "zone") moment.title = e.continentChanged ? `Arrived in ${e.continent}` : `First time in ${e.zone}`;
+    if (e.type === "note") {
+      moment.kind = "personal note (the player's own words)";
+      moment.note = cleanText(e.text, 500);
+      moment.story = undefined;
+    }
 
     const threadName = e.questLine ?? e.zone ?? "Wandering";
     if (!threads.has(threadName)) threads.set(threadName, { name: threadName, moments: [] });

@@ -72,6 +72,9 @@ export function scoreEvent(e: QHEvent, hooks: string[]): ScoredEvent {
     case "bind":
       add(3, "found a new home");
       break;
+    case "note":
+      add(10, "the player's own note");
+      break;
     case "hearth":
     case "flight_start":
     case "flight_end":
@@ -93,6 +96,8 @@ export function classify(events: QHEvent[], hooks: string[]): Map<number, { scor
     .filter((s) => s.score >= KEY_THRESHOLD)
     .sort((a, b) => b.score - a.score || a.event.seq - b.event.seq);
   const keySeqs = new Set(keyCandidates.slice(0, MAX_KEY_MOMENTS).map((s) => s.event.seq));
+  // The player's own notes are always key moments, outside the cap.
+  for (const s of scored) if (s.event.type === "note") keySeqs.add(s.event.seq);
 
   const result = new Map<number, { scored: ScoredEvent; importance: Importance }>();
   for (const s of scored) {

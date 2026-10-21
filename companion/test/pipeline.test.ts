@@ -70,6 +70,16 @@ describe("score", () => {
 });
 
 describe("digest", () => {
+  it("always keeps the player's notes as key moments, even past the cap", () => {
+    seq = 0;
+    const events = [...Array.from({ length: 8 }, () => ev("death")), ev("note", { text: "I miss home." })];
+    const d = buildDigest(events, ev("rest", { kind: "rested" }), 1, []);
+    const notes = d.threads.flatMap((t) => t.moments).filter((m) => m.note);
+    expect(notes).toHaveLength(1);
+    expect(notes[0].importance).toBe("key");
+    expect(notes[0].note).toBe("I miss home.");
+  });
+
   it("groups by thread, folds accept into turn-in, narrates travel and collapses errands", () => {
     seq = 0;
     const events = [

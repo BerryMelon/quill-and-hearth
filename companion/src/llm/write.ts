@@ -38,7 +38,9 @@ Rules:
 - Follow the character brief's voice closely. A terse soldier writes short and blunt; a poetic scholar writes lyrically.
 - Organise the entry by storyline, not strictly by the order things happened. Moments in the same thread belong together.
 - Make the journey believable. When the character moved between distant places, write the travel and WHY they went; never jump between regions without a reason. Respect the day numbers: different days need transitions such as "the next morning" or "after four days at sea".
-- Give key moments real weight and connect them to the character's fears, loves, goals and past when the moment "touches" them. Minor moments get a sentence or a passing mention. Collapsed errands get at most one line.
+- Give key moments real weight and connect them to the character's fears, loves, goals and past when the moment "touches" them. Minor moments get a sentence at most. Collapsed errands get at most one line.
+- Personal notes are the player's own words about their character: always include every one, faithfully and prominently, retold in the character's voice.
+- Stay within the length limit. If there is too much to tell, leave out minor moments and errands entirely rather than listing them; key moments and personal notes come first.
 - Use the quest story text for concrete detail (names, places, stakes), but retell it in the character's own words. Never copy it verbatim.
 - Only write what actually happened. A task marked "NOT finished yet" was only accepted: write about the request, the plan, or the character's feelings about it, NEVER as if it were already done. Do not invent fights, journeys or results that are not listed.
 - Companions may be named, with their class as their calling, but invent nothing about their personalities.
@@ -64,6 +66,7 @@ function renderDigest(d: Digest): string {
         if (m.companions?.length) lines.push(`    Companions: ${m.companions.join(", ")}`);
         if (m.story) lines.push(`    Story: ${m.story.replace(/\n+/g, " ")}`);
         if (m.outcome) lines.push(`    Outcome: ${m.outcome.replace(/\n+/g, " ")}`);
+        if (m.note) lines.push(`    In their words: "${m.note.replace(/\n+/g, " ")}"`);
       }
     }
   }

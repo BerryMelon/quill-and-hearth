@@ -9,9 +9,10 @@ QH.Bridge = Bridge
 
 local WIDTH, HEIGHT = 620, 460
 
-local function CreateTextDialog(name, title)
+local function CreateTextDialog(name, title, width, height)
+    width, height = width or WIDTH, height or HEIGHT
     local f = CreateFrame("Frame", name, UIParent, "ButtonFrameTemplate")
-    f:SetSize(WIDTH, HEIGHT)
+    f:SetSize(width, height)
     f:SetPoint("CENTER", 0, 20)
     f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
@@ -41,7 +42,7 @@ local function CreateTextDialog(name, title)
     box:SetAutoFocus(false)
     box:SetMaxLetters(0)
     box:SetFontObject("ChatFontNormal")
-    box:SetWidth(WIDTH - 80)
+    box:SetWidth(width - 80)
     box:SetScript("OnEscapePressed", function() f:Hide() end)
     -- Keep the scroll position following the cursor.
     box:SetScript("OnCursorChanged", function(_, _, y, _, height)
@@ -80,6 +81,7 @@ local function CreateTextDialog(name, title)
     f.note:SetWordWrap(false)
     return f
 end
+Bridge.CreateTextDialog = CreateTextDialog
 
 ---------------------------------------------------------------------------
 -- Step 1: show the prompt for copying

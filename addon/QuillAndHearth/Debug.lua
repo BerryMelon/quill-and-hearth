@@ -18,6 +18,8 @@ local function Describe(e)
         return s
     elseif t == "rest" then
         return ("REST (%s, %s)"):format(tostring(e.kind), tostring(e.how))
+    elseif t == "note" then
+        return ('note "%s"'):format(tostring(e.text))
     elseif t == "level" then
         return "level up -> " .. tostring(e.level)
     elseif t == "flight_start" or t == "flight_end" then

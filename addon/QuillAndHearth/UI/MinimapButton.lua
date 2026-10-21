@@ -48,6 +48,8 @@ function QH:ShowOptionsMenu(owner)
             end)
         end
 
+        root:CreateButton("Add a note...", function() QH:ShowNoteDialog() end)
+
         root:CreateDivider()
         root:CreateButton("Set up character...", function() QH:StartOnboarding(true) end)
         root:CreateButton("Show character profile", function() QH.commands.profile("") end)

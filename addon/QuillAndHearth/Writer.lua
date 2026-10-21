@@ -64,36 +64,51 @@ function QH:GetPendingWrite()
     return { digest = digest, prompt = prompt, sittings = sittings }
 end
 
---- Save an AI reply (pasted by the player) as the entry for `pending`.
-function QH:SaveWrittenEntry(pending, reply)
-    local parsed = P.ParseReply(reply)
-    if not parsed then return nil, "That doesn't look like a journal entry. Paste the AI's whole reply." end
-
+--- Store a finished entry for `pending` (from a pasted AI reply or the template writer).
+local function StoreEntry(pending, title, body, memory, source)
     local d = pending.digest
     local rest = d.lastRest
-    local j = self:GetJournal()
-    if rest.seq <= self:GetProcessedThrough() then
+    local j = QH:GetJournal()
+    if rest.seq <= QH:GetProcessedThrough() then
         return nil, "Those nights were already written."
     end
 
     local entry = {
-        id = self.charKey .. ":" .. rest.seq,
+        id = QH.charKey .. ":" .. rest.seq,
         restSeq = rest.seq,
         day = d.startDay,
         dayEnd = d.endDay ~= d.startDay and d.endDay or nil,
-        title = parsed.title,
-        body = parsed.body,
+        title = title,
+        body = body,
         zone = rest.zone,
         subzone = rest.subzone,
         restKind = rest.kind,
         level = rest.level,
         t = rest.t,
-        source = "paste",
+        source = source,
     }
     table.insert(j.entries, entry)
     j.processedThrough = rest.seq
     j.nextDay = d.endDay + 1
-    if parsed.memory then j.memory = parsed.memory end
-    self:Send("ENTRY_WRITTEN", entry)
+    if memory then j.memory = memory end
+    QH:Send("ENTRY_WRITTEN", entry)
     return entry
+end
+
+--- Save an AI reply (pasted by the player) as the entry for `pending`.
+function QH:SaveWrittenEntry(pending, reply)
+    local parsed = P.ParseReply(reply)
+    if not parsed then return nil, "That doesn't look like a journal entry. Paste the AI's whole reply." end
+    return StoreEntry(pending, parsed.title, parsed.body, parsed.memory, "paste")
+end
+
+--- Write the entry for `pending` with the in-game template writer (no AI).
+function QH:WriteTemplateEntry(pending)
+    local written = QH.Templates.Write(pending.digest, self:GetProfile())
+    -- Keep the AI's "story so far" roughly current, so a later AI entry knows these days happened.
+    local d = pending.digest
+    local memory = strtrim((self:GetJournal().memory or "") .. (" Days %d-%d near %s: %s."):format(
+        d.startDay, d.endDay, d.lastRest.zone or "the road", written.title))
+    if #memory > 900 then memory = "..." .. memory:sub(-900) end
+    return StoreEntry(pending, written.title, written.body, memory, "template")
 end

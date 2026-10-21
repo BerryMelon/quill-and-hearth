@@ -155,6 +155,8 @@ function P.Score(e, hooks)
         if (e.level or 0) % 10 == 0 then add(5, "level milestone") else add(2, "grew stronger") end
     elseif t == "bind" then
         add(3, "found a new home")
+    elseif t == "note" then
+        add(10, "the player's own note")
     elseif t == "hearth" or t == "flight_start" or t == "flight_end" or t == "instance_leave" then
         add(1, "travel")
     end
@@ -225,6 +227,10 @@ function P.BuildDigest(sittings, startDay, hooks)
     end)
     local isKey = {}
     for i = 1, math.min(#candidates, P.MAX_KEY_MOMENTS) do isKey[candidates[i].e.seq] = true end
+    -- The player's own notes are always key moments, outside the cap.
+    for _, s in ipairs(all) do
+        if s.e.type == "note" then isKey[s.e.seq] = true end
+    end
     local bySeq = {}
     for _, s in ipairs(all) do bySeq[s.e.seq] = s end
 
@@ -242,7 +248,7 @@ function P.BuildDigest(sittings, startDay, hooks)
             prevT = e.t
 
             local travel = JourneyText(e, skipDays)
-            if travel then table.insert(journey, { day = day, text = travel }) end
+            if travel then table.insert(journey, { day = day, text = travel, event = e }) end
 
             local s = bySeq[e.seq]
             local importance = isKey[e.seq] and "KEY" or (s.score >= P.MINOR_THRESHOLD and "MINOR" or nil)
@@ -261,6 +267,7 @@ function P.BuildDigest(sittings, startDay, hooks)
             else
                 local accept = e.questID and acceptByQuest[e.questID]
                 local m = {
+                    seq = e.seq,
                     day = day,
                     importance = importance,
                     place = PlaceOf(e),
@@ -283,6 +290,9 @@ function P.BuildDigest(sittings, startDay, hooks)
                     m.title = e.continentChanged and ("Arrived in " .. (e.continent or "a new land")) or ("First time in " .. (e.zone or "?"))
                 elseif e.type == "death" then
                     m.kind = "was struck down"
+                elseif e.type == "note" then
+                    m.kind = "personal note (the player's own words)"
+                    m.note = P.Clean(e.text, 500)
                 elseif e.type == "instance_enter" then
                     m.kind = "entered a dungeon"
                     m.title = e.instance
@@ -398,7 +408,9 @@ Rules:
 - Match the character's voice: a terse soldier writes short and blunt; a poetic scholar writes lyrically.
 - Organise the entry by storyline, not strictly by the order things happened.
 - Make the journey believable: when the character moved between distant places, write the travel and WHY they went. Respect the day numbers ("the next morning", "after four days at sea").
-- Give KEY moments real weight and connect them to the character's fears, goals and past when a moment touches them. MINOR moments get a sentence. Small errands get at most one line.
+- Give KEY moments real weight and connect them to the character's fears, goals and past when a moment touches them. MINOR moments get a sentence at most. Small errands get at most one line.
+- Personal notes are the player's own words about their character: always include every one, faithfully and prominently, retold in the character's voice.
+- Stay within the length limit. If there is too much to tell, leave out MINOR moments and errands entirely rather than listing them; KEY moments and personal notes come first.
 - Only write what actually happened. A task marked "NOT finished yet" was only accepted: write about the request or the plan, never as if it were done. Do not invent fights, journeys or results.
 - Retell quest story text in the character's own words; never copy it verbatim.
 - Companions may be named with their class as their calling, but invent nothing about them.
@@ -450,6 +462,7 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles)
                 if m.companions then line("    Companions: " .. table.concat(m.companions, ", ")) end
                 if m.story then line("    Story: " .. OneLine(m.story)) end
                 if m.outcome then line("    Outcome: " .. OneLine(m.outcome)) end
+                if m.note then line('    In their words: "' .. OneLine(m.note) .. '"') end
             end
         end
     end

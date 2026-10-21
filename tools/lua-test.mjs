@@ -16,6 +16,7 @@ function setGlobalString(name, value) {
   lua.lua_setglobal(L, to_luastring(name));
 }
 setGlobalString("PIPELINE_SRC", read("addon/QuillAndHearth/Pipeline.lua"));
+setGlobalString("TEMPLATES_SRC", read("addon/QuillAndHearth/Templates.lua"));
 setGlobalString("FIXTURE_SRC", read("companion/test/fixtures/sample-savedvars.lua"));
 
 const status = lauxlib.luaL_dostring(L, to_luastring(read("tools/pipeline_spec.lua")));

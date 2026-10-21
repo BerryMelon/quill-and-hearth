@@ -152,7 +152,7 @@ function Journal:Build()
 
     -- Write buttons (only on the unwritten page)
     self.copyButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-    self.copyButton:SetSize(150, 24)
+    self.copyButton:SetSize(128, 24)
     self.copyButton:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 20, 14)
     self.copyButton:SetText("1. Copy prompt")
     self.copyButton:SetScript("OnClick", function()
@@ -160,12 +160,33 @@ function Journal:Build()
     end)
 
     self.pasteButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-    self.pasteButton:SetSize(150, 24)
-    self.pasteButton:SetPoint("LEFT", self.copyButton, "RIGHT", 10, 0)
+    self.pasteButton:SetSize(128, 24)
+    self.pasteButton:SetPoint("LEFT", self.copyButton, "RIGHT", 8, 0)
     self.pasteButton:SetText("2. Paste entry")
     self.pasteButton:SetScript("OnClick", function()
         if self.pending then QH.Bridge:ShowPaste(self.pending) end
     end)
+
+    self.plainButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    self.plainButton:SetSize(150, 24)
+    self.plainButton:SetPoint("LEFT", self.pasteButton, "RIGHT", 16, 0)
+    self.plainButton:SetText("Write it plainly")
+    self.plainButton:SetScript("OnClick", function()
+        if not self.pending then return end
+        local entry, err = QH:WriteTemplateEntry(self.pending)
+        if entry then
+            QH:Print(('"%s" was written into your journal.'):format(entry.title))
+        else
+            QH:Print(err)
+        end
+    end)
+    self.plainButton:SetScript("OnEnter", function(btn)
+        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+        GameTooltip:SetText("Write it plainly")
+        GameTooltip:AddLine("Your character writes a simple entry right now, without any AI. Shorter and plainer than an AI-written one.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    self.plainButton:SetScript("OnLeave", GameTooltip_Hide)
 
     -- Footer: status + reload
     self.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -282,6 +303,7 @@ function Journal:ShowText(day, title, place, body, showWriteButtons)
     self.bodyText:SetText(body or "")
     self.copyButton:SetShown(showWriteButtons == true)
     self.pasteButton:SetShown(showWriteButtons == true)
+    self.plainButton:SetShown(showWriteButtons == true)
     self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -32, showWriteButtons and 48 or 16)
     self:LayoutPage()
     self.scroll:SetVerticalScroll(0)
@@ -291,7 +313,8 @@ local function SummarizeDigest(d)
     local lines = {}
     for _, thread in ipairs(d.threads) do
         for _, m in ipairs(thread.moments) do
-            local what = m.title and (m.kind .. ': "' .. m.title .. '"') or m.kind
+            local what = m.note and ('your note: "' .. m.note .. '"')
+                or (m.title and (m.kind .. ': "' .. m.title .. '"') or m.kind)
             table.insert(lines, ("- %s |cff7a5a3a(%s)|r"):format(what, m.place))
             if #lines >= 8 then break end
         end
@@ -318,7 +341,8 @@ function Journal:ShowPendingPage()
     body = body .. "|cff5a3a1aTo write it with any AI chat (ChatGPT, Gemini, Claude...):|r\n"
         .. "1. Click |cff5a3a1aCopy prompt|r and copy the text (Ctrl+C).\n"
         .. "2. Paste it into the AI chat and send it.\n"
-        .. "3. Copy the AI's whole reply, click |cff5a3a1aPaste entry|r, paste it (Ctrl+V) and save."
+        .. "3. Copy the AI's whole reply, click |cff5a3a1aPaste entry|r, paste it (Ctrl+V) and save.\n\n"
+        .. "Or click |cff5a3a1aWrite it plainly|r for a simple entry without any AI."
     self:ShowText(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
         PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, true)
 end

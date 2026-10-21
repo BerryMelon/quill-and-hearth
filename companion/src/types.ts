@@ -12,7 +12,8 @@ export type EventType =
   | "bind"
   | "level"
   | "death"
-  | "rest";
+  | "rest"
+  | "note";
 
 export interface PartyMember {
   name: string;
