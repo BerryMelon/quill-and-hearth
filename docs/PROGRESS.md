@@ -1,4 +1,13 @@
-# Quill & Hearth: Progress (paused 2026-10-19)
+# Quill & Hearth: Progress
+
+> **2026-10-21: the companion app was removed (v0.9.0).** Copy-paste with any AI chat plus the in-game template writer cover everything, with no installs, no API keys and no privacy concerns. Flonsus's 2 companion-written entries were migrated into his saved journal (backup: `SavedVariables\QuillAndHearth.lua.before-companion-removal.bak`; the companion's data was copied to `scratch\quill-and-hearth-companion-backup`). The companion code is still in git history (last commit with it: `2509049`). Sections below that mention the companion are historical.
+
+## Current state (v0.9.0)
+- The addon only: event capture, rest markers (inn/city/campfire), onboarding (TRP3 import or wizard), the journal (unwritten page: Write it plainly / Copy prompt / Paste entry; written entries: Copy prompt / Paste new version), personal notes, Markdown export, and a minimap button + menu.
+- Data lives only in SavedVariables (`char.journal`: entries with stored prompts, processedThrough, nextDay, memory). No `Generated/Entries.lua` anymore.
+- Tests: `npm run lua:check`, `npm run lua:test` (20 Lua tests). `npm run lua:live` (dev only) reads `GEMINI_API_KEY` from the root `.env`.
+- Next: polish (chapters, hide entries, UI tweaks from screenshots), the campfire retest when the Forever beta is back, and then publishing (to be discussed).
+
 
 **Repo:** https://github.com/BerryMelon/quill-and-hearth (public, `main`, first commit `f98e5ab`)
 **Local:** `C:\Users\chund\.gemini\antigravity\scratch\quill-and-hearth`, linked into `_classic_beta_\Interface\AddOns\QuillAndHearth`

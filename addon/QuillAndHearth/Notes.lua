@@ -1,5 +1,5 @@
 -- Quill & Hearth: personal notes. The player writes a line about what their character felt or did;
--- it becomes a KEY moment in the next journal entry (AI prompt, companion and template writer).
+-- it becomes a KEY moment in the next journal entry (AI prompt and template writer).
 local _, QH = ...
 
 local NOTE_MAX = 500

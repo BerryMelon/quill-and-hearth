@@ -19,7 +19,7 @@ setGlobalString("PIPELINE_SRC", read("addon/QuillAndHearth/Pipeline.lua"));
 setGlobalString("TEMPLATES_SRC", read("addon/QuillAndHearth/Templates.lua"));
 setGlobalString("WRITER_SRC", read("addon/QuillAndHearth/Writer.lua"));
 setGlobalString("EXPORT_SRC", read("addon/QuillAndHearth/Export.lua"));
-setGlobalString("FIXTURE_SRC", read("companion/test/fixtures/sample-savedvars.lua"));
+setGlobalString("FIXTURE_SRC", read("tools/fixtures/sample-savedvars.lua"));
 
 const status = lauxlib.luaL_dostring(L, to_luastring(read("tools/pipeline_spec.lua")));
 if (status !== lua.LUA_OK) {
@@ -30,7 +30,7 @@ if (status !== lua.LUA_OK) {
 // --live: send a real in-game prompt to Gemini as plain chat text (like a player pasting it
 // into a chat window) and check that the addon's parser understands the reply.
 if (process.argv.includes("--live")) {
-  process.loadEnvFile(root + "companion/.env");
+  process.loadEnvFile(root + ".env"); // GEMINI_API_KEY, GEMINI_MODEL, GEMINI_FALLBACK_MODEL (git-ignored)
   lua.lua_getglobal(L, to_luastring("SAMPLE_PROMPT"));
   const prompt = to_jsstring(lua.lua_tostring(L, -1));
   lua.lua_pop(L, 1);

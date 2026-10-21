@@ -119,7 +119,6 @@ QH:On("PLAYER_LOGIN", function()
     local name = UnitName("player")
     local realm = GetNormalizedRealmName() or GetRealmName() or "UnknownRealm"
     QH.charKey = name .. "-" .. realm
-    QH.loadedAt = GetServerTime() -- when Generated/Entries.lua was read (companion heartbeat check)
     QH:InitCharacter()
     QH:Send("READY")
 end)

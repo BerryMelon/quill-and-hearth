@@ -1,8 +1,8 @@
--- Quill & Hearth: rest detection. A REST marker tells the companion "write the journal up to here".
+-- Quill & Hearth: rest detection. A REST marker means "the next entry covers everything up to here".
 --
 -- A rest happens when the player:
 --   * logs out (Logout/Quit, incl. /camp) while in a rested area or near a campfire, or
---   * uses "/quill rest" while resting (writes the marker, then reloads the UI so it's saved).
+--   * uses "/quill rest" (or the minimap menu) while resting (writes the marker, opens the journal).
 -- Plain /reload does NOT count as resting.
 local _, QH = ...
 
@@ -155,11 +155,7 @@ StaticPopupDialogs["QUILLANDHEARTH_REST"] = {
         local kind = QH:GetRestKind()
         if kind then
             QH:PushRest(kind, "manual")
-            if QH:GetCompanionStatus() == "running" then
-                ReloadUI() -- saves the log so the companion can write the entry
-            else
-                QH.Journal:Open() -- write it right away with the copy-paste bridge
-            end
+            QH.Journal:Open() -- the unwritten page is ready to write
         end
     end,
     timeout = 0,

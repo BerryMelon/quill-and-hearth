@@ -13,8 +13,7 @@ local function FillTooltip(tooltip)
         local count = #QH:GetEntries()
         tooltip:AddLine(("%d journal %s"):format(count, count == 1 and "entry" or "entries"), 1, 1, 1)
         if unwritten > 0 then
-            tooltip:AddLine(QH:GetCompanionStatus() == "running" and "The ink is drying on your latest entry."
-                or "An unwritten page is waiting.", 1, 0.82, 0)
+            tooltip:AddLine("An unwritten page is waiting.", 1, 0.82, 0)
         end
         if moments > 0 then
             tooltip:AddLine(("%d %s since your last rest"):format(moments, moments == 1 and "moment" or "moments"), 0.8, 0.8, 0.8)
@@ -192,20 +191,8 @@ end
 ---------------------------------------------------------------------------
 QH:Listen("READY", function()
     C_Timer.After(6, function()
-        local entries = QH:GetEntries()
-        local lastSeen = QH.char.state.lastSeenEntryT or 0
-        local new = 0
-        for _, e in ipairs(entries) do
-            if (e.t or 0) > lastSeen then new = new + 1 end
-        end
         local unwritten = QH:GetPendingInfo()
-        local companion = QH:GetCompanionStatus()
-        if new > 0 then
-            QH:Print(("Your journal has |cffffffff%d new %s|r. Click the book on your minimap to read."):format(new, new == 1 and "entry" or "entries"))
-        end
-        if companion == "running" and unwritten > 0 then
-            QH:Print("The ink is still drying on your latest entry. |cffffd100/reload|r in a moment to read it.")
-        elseif unwritten > 0 then
+        if unwritten > 0 then
             QH:Print("An unwritten page is waiting in your journal. Click the book on your minimap to write it.")
         end
     end)

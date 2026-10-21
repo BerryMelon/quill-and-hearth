@@ -18,7 +18,7 @@ function QH:InitCharacter()
     c.firstVisits = c.firstVisits or {} -- [mapID] = true
     c.state = c.state or {}             -- persistent tracking (lastZone, instance, ...)
 
-    -- Static facts the companion can use.
+    -- Static facts used in the prompt.
     local _, classFile = UnitClass("player")
     local _, raceFile = UnitRace("player")
     c.meta = {
@@ -110,7 +110,7 @@ function QH:LastEvent()
     return ev and ev[#ev]
 end
 
---- Remove events that have already been turned into journal entries (by the companion or in game).
+--- Remove events that have already been turned into journal entries.
 function QH:PruneProcessed()
     local processed = self:GetProcessedThrough()
     if processed <= 0 then return end

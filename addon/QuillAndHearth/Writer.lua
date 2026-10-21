@@ -4,56 +4,30 @@ local _, QH = ...
 
 local P = QH.Pipeline
 
---- In-game journal state for this character (SavedVariables).
----   entries          entries written in game ({ id, title, body, prompt, source, ... })
----   overrides[id]    pasted rewrites of companion-written entries ({ title, body, t })
----   processedThrough highest event seq covered by an in-game entry
+--- The journal for this character (SavedVariables).
+---   entries          written entries ({ id, title, body, prompt, source, ... })
+---   processedThrough highest event seq covered by an entry
 ---   memory           the AI's rolling "story so far"
 function QH:GetJournal()
     local c = self.char
     c.journal = c.journal or {}
     local j = c.journal
     j.entries = j.entries or {}
-    j.overrides = j.overrides or {}
     j.processedThrough = j.processedThrough or 0
     j.memory = j.memory or ""
     return j
 end
 
-local function GeneratedChar()
-    local gen = QuillAndHearth_Generated
-    return gen and gen.characters and gen.characters[QH.charKey]
-end
-
---- Highest event seq already turned into an entry (by the companion OR in game).
+--- Highest event seq already turned into an entry.
 function QH:GetProcessedThrough()
-    local gc = GeneratedChar()
-    local fromCompanion = gc and gc.processedThrough or 0
-    local fromGame = self.char and self:GetJournal().processedThrough or 0
-    return math.max(fromCompanion, fromGame)
+    return self.char and self:GetJournal().processedThrough or 0
 end
 
---- All entries (companion-written and in-game), oldest first. Companion entries are copied
---- with any in-game rewrite applied, so the generated data itself is never modified.
+--- All entries, oldest first.
 function QH:GetEntries()
     local list = {}
-    local j = self.char and self:GetJournal()
-    local gc = GeneratedChar()
-    if gc and type(gc.entries) == "table" then
-        for _, e in ipairs(gc.entries) do
-            local override = j and e.id and j.overrides[e.id]
-            if override then
-                local copy = {}
-                for k, v in pairs(e) do copy[k] = v end
-                copy.title, copy.body, copy.rewritten = override.title, override.body, true
-                table.insert(list, copy)
-            else
-                table.insert(list, e)
-            end
-        end
-    end
-    if j then
-        for _, e in ipairs(j.entries) do table.insert(list, e) end
+    if self.char then
+        for _, e in ipairs(self:GetJournal().entries) do table.insert(list, e) end
     end
     table.sort(list, function(a, b) return (a.t or 0) < (b.t or 0) end)
     return list
@@ -153,21 +127,13 @@ function QH:RewriteEntry(id, reply)
     local entries = self:GetEntries()
     local isNewest = entries[#entries] and entries[#entries].id == id
 
-    local target
-    for _, e in ipairs(j.entries) do
-        if e.id == id then target = e end
-    end
-    if target then
-        target.title, target.body = parsed.title, parsed.body
-        target.source = "paste"
-        target.rewrittenAt = GetServerTime()
-    else
-        if not self:FindEntry(id) then return nil, "That entry no longer exists." end
-        j.overrides[id] = { title = parsed.title, body = parsed.body, t = GetServerTime() }
-    end
+    local target = self:FindEntry(id)
+    if not target then return nil, "That entry no longer exists." end
+    target.title, target.body = parsed.title, parsed.body
+    target.source = "paste"
+    target.rewrittenAt = GetServerTime()
     if isNewest and parsed.memory then j.memory = parsed.memory end
 
-    local entry = self:FindEntry(id)
-    self:Send("ENTRY_WRITTEN", entry)
-    return entry
+    self:Send("ENTRY_WRITTEN", target)
+    return target
 end

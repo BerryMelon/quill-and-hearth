@@ -1,3 +1,6 @@
+> [!NOTE]
+> Historical v1 plan. The companion app described here was built, then **removed in v0.9.0** in favour of copy-paste with any AI chat and the in-game template writer. See [PROGRESS.md](PROGRESS.md) for the current state.
+
 # Quill & Hearth v1: Implementation Plan
 
 An automatic, first-person RP journal for WoW: Forever. An in-game addon records meaningful moments. A desktop companion app turns them into journal entries with an LLM, but only when the character **rests**. Entries appear in a book-style UI in game.

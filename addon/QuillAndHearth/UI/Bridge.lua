@@ -1,4 +1,4 @@
--- Quill & Hearth: the copy-paste bridge to any AI chat (no companion app needed).
+-- Quill & Hearth: the copy-paste bridge to any AI chat.
 -- WoW can't put text on the clipboard or call an AI itself, so we show the prompt in a
 -- selectable text box (Ctrl+C) and take the reply back through another box (Ctrl+V),
 -- the same way WeakAuras import/export strings work.

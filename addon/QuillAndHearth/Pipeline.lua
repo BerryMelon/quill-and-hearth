@@ -1,8 +1,8 @@
--- Quill & Hearth: in-game story pipeline (Lua port of the companion's pipeline).
+-- Quill & Hearth: the story pipeline.
 -- Turns recorded events into a story-shaped digest and an LLM prompt, so a journal entry can be
--- written WITHOUT the companion app (copy the prompt into any AI chat, paste the reply back).
+-- written by any AI chat (copy the prompt, paste the reply back) or by the template writer.
 --
--- Coherence rules (same as the companion):
+-- Coherence rules:
 --   * moments are grouped into storylines (quest line, otherwise zone), not play order
 --   * travel is kept as an ordered journey so jumps between places can be narrated
 --   * an in-character calendar: a rest is a night, a voyage to another continent takes days

@@ -14,24 +14,6 @@ local PENDING = "pending"
 ---------------------------------------------------------------------------
 -- Data helpers
 ---------------------------------------------------------------------------
-function QH:CompanionHasRun()
-    local gen = QuillAndHearth_Generated
-    return gen ~= nil and gen.generatedAt ~= nil
-end
-
--- The companion rewrites Entries.lua every minute, so its timestamp doubles as a heartbeat.
--- (Entries.lua is read when the UI loads, so this reflects the moment of the last login/reload.)
-local HEARTBEAT_STALE_SECONDS = 180
-
---- "running", "stopped" (has run before, but not recently) or "never".
-function QH:GetCompanionStatus()
-    local gen = QuillAndHearth_Generated
-    if not (gen and gen.generatedAt) then return "never" end
-    local loadedAt = QH.loadedAt or GetServerTime()
-    if math.abs(loadedAt - gen.generatedAt) <= HEARTBEAT_STALE_SECONDS then return "running" end
-    return "stopped"
-end
-
 --- unwrittenRests: rests not written up yet. momentsSinceRest: events after the latest rest.
 function QH:GetPendingInfo()
     local processed = self:GetProcessedThrough()
@@ -210,10 +192,10 @@ function Journal:Build()
     end)
     self.pasteButton:SetScript("OnLeave", GameTooltip_Hide)
 
-    -- Footer: status + export + reload
+    -- Footer: status + export
     self.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.status:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 9)
-    self.status:SetPoint("RIGHT", f, "RIGHT", -236, 0)
+    self.status:SetPoint("RIGHT", f, "RIGHT", -120, 0)
     self.status:SetJustifyH("LEFT")
     self.status:SetWordWrap(false)
 
@@ -229,19 +211,6 @@ function Journal:Build()
         GameTooltip:Show()
     end)
     self.export:SetScript("OnLeave", GameTooltip_Hide)
-
-    self.reload = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    self.reload:SetSize(110, 22)
-    self.reload:SetPoint("RIGHT", self.export, "LEFT", -6, 0)
-    self.reload:SetText("Reload UI")
-    self.reload:SetScript("OnClick", function() ReloadUI() end)
-    self.reload:SetScript("OnEnter", function(btn)
-        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
-        GameTooltip:SetText("Reload to read new entries")
-        GameTooltip:AddLine("Entries written by the companion app appear after a reload.", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    self.reload:SetScript("OnLeave", GameTooltip_Hide)
 
     QH:Listen("ENTRY_WRITTEN", function()
         if self.frame:IsShown() then self:Refresh(self.selected ~= PENDING and self.selected or true) end
@@ -380,9 +349,6 @@ function Journal:ShowPendingPage()
     local d = self.pending.digest
     local nights = d.nights > 1 and (" (%d nights)"):format(d.nights) or ""
     local body = "Since your last entry:\n" .. SummarizeDigest(d) .. "\n\n"
-    if QH:GetCompanionStatus() == "running" then
-        body = body .. "The companion app is writing this entry. Reload your UI in a moment to read it, or write it yourself with the buttons below.\n\n"
-    end
     body = body .. "|cff5a3a1aTo write it with any AI chat (ChatGPT, Gemini, Claude...):|r\n"
         .. "1. Click |cff5a3a1aCopy prompt|r and copy the text (Ctrl+C).\n"
         .. "2. Paste it into the AI chat and send it.\n"
@@ -434,12 +400,9 @@ end
 ---------------------------------------------------------------------------
 function Journal:RefreshStatus()
     local unwritten, moments = QH:GetPendingInfo()
-    local companion = QH:GetCompanionStatus()
     local text
     if unwritten > 0 then
-        text = companion == "running"
-            and "|cffffd100The ink is drying.|r The companion is writing your entry; reload in a moment."
-            or "|cffffd100An unwritten page is waiting.|r Copy the prompt into any AI chat, then paste the reply."
+        text = "|cffffd100An unwritten page is waiting.|r Copy the prompt into any AI chat, or write it plainly."
     elseif moments > 0 then
         text = ("%d %s since your last rest. Rest at an inn, a city or a campfire to write.")
             :format(moments, moments == 1 and "moment" or "moments")
@@ -447,7 +410,6 @@ function Journal:RefreshStatus()
         text = "Nothing new since your last rest."
     end
     self.status:SetText(text)
-    self.reload:SetShown(unwritten > 0 and companion == "running")
 end
 
 ---------------------------------------------------------------------------
