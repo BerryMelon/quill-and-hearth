@@ -202,7 +202,7 @@ QH:Listen("READY", function()
             QH:Print(("Your journal has |cffffffff%d new %s|r. Click the book on your minimap to read."):format(new, new == 1 and "entry" or "entries"))
         end
         if companion ~= "running" then
-            QH:Print("|cffff7f3fThe companion app isn't running|r, so nothing new will be written. Start it, or run |cffffd100npm run autostart:on|r once so it starts with Windows.")
+            QH:Print("|cffff7f3fThe companion app isn't running|r, so nothing new will be written. Start it (|cffffd100npm start|r in the companion folder) before you play.")
         elseif unwritten > 0 then
             QH:Print("The ink is still drying on your latest entry. |cffffd100/reload|r in a moment to read it.")
         end

@@ -8,8 +8,6 @@
     "start": "tsx src/index.ts",
     "once": "tsx src/index.ts --once",
     "stop": "tsx src/index.ts --stop",
-    "autostart:on": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/autostart-on.ps1",
-    "autostart:off": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/autostart-off.ps1",
     "typecheck": "tsc",
     "test": "vitest run"
   },

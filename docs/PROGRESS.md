@@ -32,10 +32,10 @@
 2. Pending in-game tests: the TRP3 import, and the campfire fix (paste the `/quill restcheck` buff list).
 3. Phase 5 polish: chapters, entry rewrite/hide, UI redesign after v1 feedback.
 
-## Built: v0.4.0 (minimap button + companion autostart), not yet tested in game
+## Built: v0.4.0 (minimap button + companion heartbeat), not yet tested in game
 - `UI/MinimapButton.lua`: a draggable round book button on the minimap (left-click: journal; right-click: a MenuUtil menu with Open journal / Rest and write (disabled unless resting) / Set up character / Show profile / Hide button). `/quill minimap` toggles it. The addon compartment supports the same left/right clicks.
-- Companion: `npm run autostart:on` / `autostart:off` (Windows Startup folder VBS launcher, hidden), `npm run stop`, single instance (`data/companion.pid`), log file (`data/companion.log`), heartbeat (rewrites Entries.lua every 60 s; the addon compares `generatedAt` with its load time and warns if the companion isn't running).
-- An addon can't launch programs, which is why autostart happens at Windows sign-in.
+- Companion: `npm run stop`, single instance (`data/companion.pid`), log file (`data/companion.log`), heartbeat (rewrites Entries.lua every 60 s; the addon compares `generatedAt` with its load time and warns if the companion isn't running).
+- **Decision (2026-10-21): no autostart with Windows** (privacy, since the addon will be published to other users). The user starts the companion manually; an addon can't launch programs anyway.
 
 ## Built: Phase 4 (journal UI, v0.3.0)
 - `UI/JournalFrame.lua`: stock `ButtonFrameTemplate`; entry list on the left (newest first, NEW tags), a parchment reading page on the right (`QuestTitleFont`/`QuestFont`), footer status (moments since last rest / ink drying + Reload UI button), an empty-state page that explains the companion.
