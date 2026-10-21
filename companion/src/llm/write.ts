@@ -123,6 +123,25 @@ export function buildEntryPrompt(brief: Brief, memory: StoryMemory, digest: Dige
     .join("\n");
 }
 
+/** Same reply format the addon's copy-paste bridge understands (Pipeline.lua ParseReply). */
+const COPY_PASTE_FORMAT = `Reply in EXACTLY this format, with nothing before or after it:
+TITLE: <a short evocative title, 2-6 words>
+ENTRY:
+<the journal entry, paragraphs separated by a blank line>
+MEMORY: <the whole story so far including tonight, third person, under 120 words, for continuity next time>`;
+
+/**
+ * A self-contained prompt a player can paste into any AI chat to get a new version of an entry
+ * (stored with each entry so the journal can offer "Copy prompt" / "Paste new version").
+ */
+export function buildCopyPastePrompt(brief: Brief, memory: StoryMemory, digest: Digest, previousTitles: string[]): string {
+  const body = buildEntryPrompt(brief, memory, digest, previousTitles).replace(
+    /\nWrite tonight's journal entry and the updated story memory as JSON\.$/,
+    "",
+  );
+  return `${SYSTEM}\n\n${body}\n\n${COPY_PASTE_FORMAT}`;
+}
+
 export async function writeEntry(
   llm: LLM,
   brief: Brief,

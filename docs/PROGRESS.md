@@ -32,7 +32,14 @@
 2. Pending in-game tests: the TRP3 import, and the campfire fix (paste the `/quill restcheck` buff list).
 3. Phase 5 polish: chapters, entry rewrite/hide, UI redesign after v1 feedback.
 
-## Built: v0.6.0 (template writer + notes), not yet tested in game
+## Built: v0.7.0 (rewrite any entry), not yet tested in game
+- Every new entry stores the prompt it was written from (`entry.prompt`): in-game entries (plain or pasted) and companion entries (the companion stores a copy-paste-ready prompt with the TITLE/ENTRY/MEMORY format). Entries written before v0.7.0 have no prompt, so they show no buttons.
+- Written entries with a prompt show **Copy prompt** / **Paste new version**. In-game entries are replaced in place (`source` becomes `paste`, `rewrittenAt`); companion entries get `journal.overrides[id]` (the generated file is never modified). The page shows (written plainly) / (rewritten).
+- Story memory is only replaced when rewriting the newest entry.
+- Bridge refactored to jobs (`PendingJob` / `RewriteJob`); journal selection is by entry id.
+- Tests: 18 Lua tests (incl. Writer with WoW stubs), 14 companion tests.
+
+## Done: v0.6.0 (template writer + notes). The user tested Write it plainly: simple but usable.
 - `Templates.lua`: in-game template writer (no AI). Voice banks for Plain/Formal/Poetic/Terse, closings by temperament, told in chronological order with day transitions (next day / days later), voyages, first visits, flights, hearthstone, deaths, dungeons with companions, fear lines (hooks), minor list (max 3), errands, notes; deterministic per rest (seeded). The journal's unwritten page has a third button: **Write it plainly**. Template entries add a short line to the AI story memory.
 - `Notes.lua`: `/quill note [text]` or the minimap menu's **Add a note...** (multi-line dialog, 500 chars). Notes are `note` events, always KEY (outside the cap), shown in the prompt as `In their words: ...`, used by the companion too.
 - Prompt (in game + companion): MINOR moments get a sentence at most and may be left out entirely to stay within the length; notes always included.

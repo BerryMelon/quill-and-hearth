@@ -28,6 +28,7 @@ export function renderGenerated(states: CharacterState[], now = Math.floor(Date.
         restKind: e.restKind,
         level: e.level,
         t: e.t,
+        prompt: e.prompt,
       })),
     };
   }

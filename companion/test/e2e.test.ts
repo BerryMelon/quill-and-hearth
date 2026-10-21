@@ -25,6 +25,10 @@ describe("end-to-end with the mock LLM", () => {
     expect(state.nextDay).toBe(3);
     expect(state.brief?.name).toBe("Flonsus");
     expect(written[1].body).toContain("Discipline");
+    // Each entry keeps a copy-paste prompt in the addon's reply format.
+    expect(written[0].prompt).toContain("first person");
+    expect(written[0].prompt).toContain("TITLE:");
+    expect(written[0].prompt).not.toContain("as JSON");
 
     // Running again writes nothing new.
     const again = await processCharacter(charKey, db.characters[charKey], state, llm);

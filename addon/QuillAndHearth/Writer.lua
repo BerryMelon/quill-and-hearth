@@ -1,14 +1,20 @@
--- Quill & Hearth: journal entries written in game (copy-paste bridge), and what's still unwritten.
+-- Quill & Hearth: journal entries written in game (copy-paste bridge or template writer),
+-- rewrites of existing entries, and what's still unwritten.
 local _, QH = ...
 
 local P = QH.Pipeline
 
 --- In-game journal state for this character (SavedVariables).
+---   entries          entries written in game ({ id, title, body, prompt, source, ... })
+---   overrides[id]    pasted rewrites of companion-written entries ({ title, body, t })
+---   processedThrough highest event seq covered by an in-game entry
+---   memory           the AI's rolling "story so far"
 function QH:GetJournal()
     local c = self.char
     c.journal = c.journal or {}
     local j = c.journal
     j.entries = j.entries or {}
+    j.overrides = j.overrides or {}
     j.processedThrough = j.processedThrough or 0
     j.memory = j.memory or ""
     return j
@@ -27,18 +33,37 @@ function QH:GetProcessedThrough()
     return math.max(fromCompanion, fromGame)
 end
 
---- All entries (companion-written and in-game), oldest first.
+--- All entries (companion-written and in-game), oldest first. Companion entries are copied
+--- with any in-game rewrite applied, so the generated data itself is never modified.
 function QH:GetEntries()
     local list = {}
+    local j = self.char and self:GetJournal()
     local gc = GeneratedChar()
     if gc and type(gc.entries) == "table" then
-        for _, e in ipairs(gc.entries) do table.insert(list, e) end
+        for _, e in ipairs(gc.entries) do
+            local override = j and e.id and j.overrides[e.id]
+            if override then
+                local copy = {}
+                for k, v in pairs(e) do copy[k] = v end
+                copy.title, copy.body, copy.rewritten = override.title, override.body, true
+                table.insert(list, copy)
+            else
+                table.insert(list, e)
+            end
+        end
     end
-    if self.char then
-        for _, e in ipairs(self:GetJournal().entries) do table.insert(list, e) end
+    if j then
+        for _, e in ipairs(j.entries) do table.insert(list, e) end
     end
     table.sort(list, function(a, b) return (a.t or 0) < (b.t or 0) end)
     return list
+end
+
+function QH:FindEntry(id)
+    for i, e in ipairs(self:GetEntries()) do
+        if e.id == id then return e, i end
+    end
+    return nil
 end
 
 local function NextDay()
@@ -65,6 +90,7 @@ function QH:GetPendingWrite()
 end
 
 --- Store a finished entry for `pending` (from a pasted AI reply or the template writer).
+--- The prompt is kept with the entry so it can be rewritten later (events get pruned).
 local function StoreEntry(pending, title, body, memory, source)
     local d = pending.digest
     local rest = d.lastRest
@@ -86,6 +112,7 @@ local function StoreEntry(pending, title, body, memory, source)
         level = rest.level,
         t = rest.t,
         source = source,
+        prompt = pending.prompt,
     }
     table.insert(j.entries, entry)
     j.processedThrough = rest.seq
@@ -95,10 +122,12 @@ local function StoreEntry(pending, title, body, memory, source)
     return entry
 end
 
+local BAD_PASTE = "That doesn't look like a journal entry. Paste the AI's whole reply."
+
 --- Save an AI reply (pasted by the player) as the entry for `pending`.
 function QH:SaveWrittenEntry(pending, reply)
     local parsed = P.ParseReply(reply)
-    if not parsed then return nil, "That doesn't look like a journal entry. Paste the AI's whole reply." end
+    if not parsed then return nil, BAD_PASTE end
     return StoreEntry(pending, parsed.title, parsed.body, parsed.memory, "paste")
 end
 
@@ -111,4 +140,34 @@ function QH:WriteTemplateEntry(pending)
         d.startDay, d.endDay, d.lastRest.zone or "the road", written.title))
     if #memory > 900 then memory = "..." .. memory:sub(-900) end
     return StoreEntry(pending, written.title, written.body, memory, "template")
+end
+
+--- Replace an existing entry with a newly pasted AI version (from the entry's stored prompt).
+--- The story memory is only updated when rewriting the newest entry, so older rewrites
+--- can't rewind the story.
+function QH:RewriteEntry(id, reply)
+    local parsed = P.ParseReply(reply)
+    if not parsed then return nil, BAD_PASTE end
+
+    local j = self:GetJournal()
+    local entries = self:GetEntries()
+    local isNewest = entries[#entries] and entries[#entries].id == id
+
+    local target
+    for _, e in ipairs(j.entries) do
+        if e.id == id then target = e end
+    end
+    if target then
+        target.title, target.body = parsed.title, parsed.body
+        target.source = "paste"
+        target.rewrittenAt = GetServerTime()
+    else
+        if not self:FindEntry(id) then return nil, "That entry no longer exists." end
+        j.overrides[id] = { title = parsed.title, body = parsed.body, t = GetServerTime() }
+    end
+    if isNewest and parsed.memory then j.memory = parsed.memory end
+
+    local entry = self:FindEntry(id)
+    self:Send("ENTRY_WRITTEN", entry)
+    return entry
 end

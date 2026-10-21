@@ -156,7 +156,7 @@ function Journal:Build()
     self.copyButton:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 20, 14)
     self.copyButton:SetText("1. Copy prompt")
     self.copyButton:SetScript("OnClick", function()
-        if self.pending then QH.Bridge:ShowPrompt(self.pending) end
+        if self.job then QH.Bridge:ShowPrompt(self.job) end
     end)
 
     self.pasteButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
@@ -164,7 +164,7 @@ function Journal:Build()
     self.pasteButton:SetPoint("LEFT", self.copyButton, "RIGHT", 8, 0)
     self.pasteButton:SetText("2. Paste entry")
     self.pasteButton:SetScript("OnClick", function()
-        if self.pending then QH.Bridge:ShowPaste(self.pending) end
+        if self.job then QH.Bridge:ShowPaste(self.job) end
     end)
 
     self.plainButton = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
@@ -188,6 +188,28 @@ function Journal:Build()
     end)
     self.plainButton:SetScript("OnLeave", GameTooltip_Hide)
 
+    local function WriteTooltip(btn, pendingTitle, pendingText, entryTitle, entryText)
+        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+        if self.selected == PENDING then
+            GameTooltip:SetText(pendingTitle)
+            GameTooltip:AddLine(pendingText, 1, 1, 1, true)
+        else
+            GameTooltip:SetText(entryTitle)
+            GameTooltip:AddLine(entryText, 1, 1, 1, true)
+        end
+        GameTooltip:Show()
+    end
+    self.copyButton:SetScript("OnEnter", function(btn)
+        WriteTooltip(btn, "Copy prompt", "Copy the prompt into any AI chat (ChatGPT, Gemini, Claude...).",
+            "Copy prompt", "The prompt this entry was written from. Paste it into any AI chat to get a new version.")
+    end)
+    self.copyButton:SetScript("OnLeave", GameTooltip_Hide)
+    self.pasteButton:SetScript("OnEnter", function(btn)
+        WriteTooltip(btn, "Paste entry", "Paste the AI's reply to write tonight's entry.",
+            "Paste new version", "Paste a new AI reply to replace this entry's text.")
+    end)
+    self.pasteButton:SetScript("OnLeave", GameTooltip_Hide)
+
     -- Footer: status + reload
     self.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.status:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 9)
@@ -209,7 +231,7 @@ function Journal:Build()
     self.reload:SetScript("OnLeave", GameTooltip_Hide)
 
     QH:Listen("ENTRY_WRITTEN", function()
-        if self.frame:IsShown() then self:Refresh(true) end
+        if self.frame:IsShown() then self:Refresh(self.selected ~= PENDING and self.selected or true) end
     end)
 end
 
@@ -273,12 +295,12 @@ function Journal:RefreshList()
         local e = entries[n]
         i = i + 1
         local row = self:GetRow(i)
-        row.key = n
+        row.key = e.id
         row.title:SetText(e.title or "Untitled")
         row.sub:SetText(DayLabel(e.day, e.dayEnd) .. (e.zone and ("  |cff999999" .. e.zone .. "|r") or ""))
         row.tag:SetText("NEW")
         row.tag:SetShown((e.t or 0) > seenBefore)
-        row.selected:SetShown(self.selected == n)
+        row.selected:SetShown(self.selected == e.id)
         row:Show()
     end
     for n = i + 1, #self.rows do self.rows[n]:Hide() end
@@ -296,15 +318,25 @@ function Journal:LayoutPage()
     self.content:SetHeight(math.max(1, height))
 end
 
-function Journal:ShowText(day, title, place, body, showWriteButtons)
+--- mode: "pending" (unwritten page: copy / paste / write plainly), "entry" (written entry with a
+--- stored prompt: copy / paste a new version), or nil (no buttons).
+function Journal:ShowText(day, title, place, body, mode)
     self.dayText:SetText(day or "")
     self.titleText:SetText(title or "")
     self.placeText:SetText(place or "")
     self.bodyText:SetText(body or "")
-    self.copyButton:SetShown(showWriteButtons == true)
-    self.pasteButton:SetShown(showWriteButtons == true)
-    self.plainButton:SetShown(showWriteButtons == true)
-    self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -32, showWriteButtons and 48 or 16)
+    local showButtons = mode == "pending" or mode == "entry"
+    self.copyButton:SetShown(showButtons)
+    self.pasteButton:SetShown(showButtons)
+    self.plainButton:SetShown(mode == "pending")
+    if mode == "pending" then
+        self.copyButton:SetText("1. Copy prompt")
+        self.pasteButton:SetText("2. Paste entry")
+    elseif mode == "entry" then
+        self.copyButton:SetText("Copy prompt")
+        self.pasteButton:SetText("Paste new version")
+    end
+    self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -32, showButtons and 48 or 16)
     self:LayoutPage()
     self.scroll:SetVerticalScroll(0)
 end
@@ -344,7 +376,7 @@ function Journal:ShowPendingPage()
         .. "3. Copy the AI's whole reply, click |cff5a3a1aPaste entry|r, paste it (Ctrl+V) and save.\n\n"
         .. "Or click |cff5a3a1aWrite it plainly|r for a simple entry without any AI."
     self:ShowText(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
-        PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, true)
+        PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, "pending")
 end
 
 function Journal:ShowEmptyPage()
@@ -352,19 +384,31 @@ function Journal:ShowEmptyPage()
     local body = ("Your journal is still empty.\n\n%d %s been recorded since you began. "
         .. "Rest at an inn, in a city, or by a campfire, and your character will be ready to write about it.")
         :format(moments, moments == 1 and "moment has" or "moments have")
-    self:ShowText("", "A blank page", "", body, false)
+    self:ShowText("", "A blank page", "", body, nil)
 end
 
+function Journal:ShowEntryPage(e)
+    local notes = {}
+    if e.level then table.insert(notes, ("level %d"):format(e.level)) end
+    if e.source == "template" then table.insert(notes, "written plainly") end
+    if e.rewritten or e.rewrittenAt then table.insert(notes, "rewritten") end
+    local place = PlaceText(e.restKind, e.zone, e.subzone)
+    if #notes > 0 then place = place .. "  |cff999999(" .. table.concat(notes, ", ") .. ")|r" end
+    self:ShowText(DayLabel(e.day, e.dayEnd), e.title, place, e.body, e.prompt and "entry" or nil)
+end
+
+--- key: PENDING or an entry id.
 function Journal:Select(key)
-    local entries = QH:GetEntries()
+    self.job = nil
+    local entry = key and key ~= PENDING and QH:FindEntry(key)
     if key == PENDING and self.pending then
         self.selected = PENDING
+        self.job = QH.Bridge.PendingJob(self.pending)
         self:ShowPendingPage()
-    elseif type(key) == "number" and entries[key] then
-        self.selected = key
-        local e = entries[key]
-        local level = e.level and ("  |cff999999(level %d)|r"):format(e.level) or ""
-        self:ShowText(DayLabel(e.day, e.dayEnd), e.title, PlaceText(e.restKind, e.zone, e.subzone) .. level, e.body, false)
+    elseif entry then
+        self.selected = entry.id
+        if entry.prompt then self.job = QH.Bridge.RewriteJob(entry) end
+        self:ShowEntryPage(entry)
     else
         self.selected = nil
         self:ShowEmptyPage()
@@ -396,14 +440,17 @@ end
 ---------------------------------------------------------------------------
 -- Open / refresh
 ---------------------------------------------------------------------------
---- Rebuild everything. `selectNewest` jumps to the newest entry (e.g. right after writing one).
-function Journal:Refresh(selectNewest)
+--- Rebuild everything. `target`: an entry id to show, `true` for the newest entry, or nil to
+--- show the unwritten page first (if there is one).
+function Journal:Refresh(target)
     self.pending = QH:GetPendingWrite()
     local entries = QH:GetEntries()
-    if self.pending and not selectNewest then
+    if type(target) == "string" and QH:FindEntry(target) then
+        self:Select(target)
+    elseif self.pending and not target then
         self:Select(PENDING)
     elseif #entries > 0 then
-        self:Select(#entries)
+        self:Select(entries[#entries].id)
     else
         self:Select(nil)
     end

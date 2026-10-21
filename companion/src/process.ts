@@ -3,7 +3,7 @@ import type { JournalEntry, QHCharacter, QHSavedVariables } from "./types.js";
 import { findSittings } from "./pipeline/segment.js";
 import { buildDigest } from "./pipeline/digest.js";
 import { generateBrief, profileHash } from "./llm/brief.js";
-import { normalizeBody, writeEntry } from "./llm/write.js";
+import { buildCopyPastePrompt, normalizeBody, writeEntry } from "./llm/write.js";
 import type { LLM } from "./llm/client.js";
 import type { CharacterState } from "./state/store.js";
 
@@ -55,9 +55,11 @@ export async function processCharacter(
       log(`${charKey}: rest #${sitting.rest.seq} had nothing to write about; skipping.`);
     } else {
       log(`${charKey}: writing the entry for rest #${sitting.rest.seq} (day ${digest.startDay}${digest.endDay !== digest.startDay ? `-${digest.endDay}` : ""})...`);
+      const previousTitles = state.entries.map((e) => e.title);
+      const copyPastePrompt = buildCopyPastePrompt(state.brief, state.memory, digest, previousTitles);
       let result;
       try {
-        result = await writeEntry(llm, state.brief, state.memory, digest, state.entries.map((e) => e.title));
+        result = await writeEntry(llm, state.brief, state.memory, digest, previousTitles);
       } catch (err) {
         // Keep everything written so far; this sitting will be retried next time.
         log(`${charKey}: could not write the entry for rest #${sitting.rest.seq}: ${String(err)}`);
@@ -75,6 +77,7 @@ export async function processCharacter(
         restKind: sitting.rest.kind,
         level: sitting.rest.level,
         t: sitting.rest.t,
+        prompt: copyPastePrompt,
       };
       state.entries.push(entry);
       state.memory = result.memory;

@@ -140,4 +140,6 @@ export interface JournalEntry {
   restKind?: string;
   level?: number;
   t: number; // real time of the rest (epoch seconds)
+  /** Copy-paste-ready prompt, so the player can get a new version from any AI chat in game. */
+  prompt?: string;
 }

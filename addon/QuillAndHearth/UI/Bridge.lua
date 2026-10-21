@@ -84,9 +84,33 @@ end
 Bridge.CreateTextDialog = CreateTextDialog
 
 ---------------------------------------------------------------------------
+-- Jobs: what the prompt is and what happens to the pasted reply.
+--   job.prompt   text to copy
+--   job.save     function(replyText) -> entry | nil, errorMessage
+--   job.rewrite  true when replacing an existing entry (changes the wording)
+---------------------------------------------------------------------------
+--- Job for writing tonight's unwritten page.
+function Bridge.PendingJob(pending)
+    return {
+        prompt = pending.prompt,
+        save = function(text) return QH:SaveWrittenEntry(pending, text) end,
+    }
+end
+
+--- Job for replacing an existing entry with a new AI version, using the entry's stored prompt.
+function Bridge.RewriteJob(entry)
+    return {
+        prompt = entry.prompt,
+        rewrite = true,
+        entryId = entry.id,
+        save = function(text) return QH:RewriteEntry(entry.id, text) end,
+    }
+end
+
+---------------------------------------------------------------------------
 -- Step 1: show the prompt for copying
 ---------------------------------------------------------------------------
-function Bridge:ShowPrompt(pending)
+function Bridge:ShowPrompt(job)
     if not self.promptFrame then
         local f = CreateTextDialog("QuillAndHearthPromptDialog", "Copy the prompt")
         f.instructions:SetText("Press |cffffd100Ctrl+C|r to copy, then paste it into any AI chat (ChatGPT, Gemini, Claude...) and send it.")
@@ -98,7 +122,7 @@ function Bridge:ShowPrompt(pending)
         f.primary:SetText("Next: paste the reply")
         f.primary:SetScript("OnClick", function()
             f:Hide()
-            Bridge:ShowPaste(Bridge.pending)
+            Bridge:ShowPaste(Bridge.job)
         end)
         -- Read-only: undo any typing, keep the text selected for copying.
         f.box:SetScript("OnTextChanged", function(box, userInput)
@@ -111,10 +135,10 @@ function Bridge:ShowPrompt(pending)
         self.promptFrame = f
     end
     local f = self.promptFrame
-    self.pending = pending
-    f.text = pending.prompt
-    f.box:SetText(pending.prompt)
-    f.note:SetText(("%d characters. The text is selected; just press Ctrl+C."):format(#pending.prompt))
+    self.job = job
+    f.text = job.prompt
+    f.box:SetText(job.prompt)
+    f.note:SetText(("%d characters. The text is selected; just press Ctrl+C."):format(#job.prompt))
     f:Show()
     f.scroll:SetVerticalScroll(0)
     f.box:SetFocus()
@@ -124,27 +148,30 @@ end
 ---------------------------------------------------------------------------
 -- Step 2: paste the AI's reply
 ---------------------------------------------------------------------------
-function Bridge:ShowPaste(pending)
+function Bridge:ShowPaste(job)
     if not self.pasteFrame then
         local f = CreateTextDialog("QuillAndHearthPasteDialog", "Paste the AI's reply")
-        f.instructions:SetText("Copy the AI's whole reply, click in the box below and press |cffffd100Ctrl+V|r. Then save it to your journal.")
         f.secondary:SetText("Clear")
         f.secondary:SetScript("OnClick", function()
             f.box:SetText("")
             f.box:SetFocus()
         end)
-        f.primary:SetText("Save to journal")
         f.primary:SetScript("OnClick", function()
-            local entry, err = QH:SaveWrittenEntry(Bridge.pending, f.box:GetText())
+            local current = Bridge.job
+            local entry, err = current.save(f.box:GetText())
             if not entry then
                 f.note:SetText("|cffff5050" .. err .. "|r")
                 return
             end
             f.box:SetText("")
             f:Hide()
-            QH:Print(('"%s" was written into your journal.'):format(entry.title))
+            if current.rewrite then
+                QH:Print(('Your entry was rewritten: "%s".'):format(entry.title))
+            else
+                QH:Print(('"%s" was written into your journal.'):format(entry.title))
+            end
             QH.Journal:Open()
-            QH.Journal:Refresh(true)
+            QH.Journal:Refresh(entry.id)
         end)
         f.box:SetScript("OnTextChanged", function(box)
             local n = #box:GetText()
@@ -153,7 +180,16 @@ function Bridge:ShowPaste(pending)
         self.pasteFrame = f
     end
     local f = self.pasteFrame
-    self.pending = pending
+    self.job = job
+    if job.rewrite then
+        if f.SetTitle then f:SetTitle("Paste the new version") end
+        f.instructions:SetText("Copy the AI's whole reply, click in the box below and press |cffffd100Ctrl+V|r. Saving |cffffd100replaces|r this entry's current text.")
+        f.primary:SetText("Replace entry")
+    else
+        if f.SetTitle then f:SetTitle("Paste the AI's reply") end
+        f.instructions:SetText("Copy the AI's whole reply, click in the box below and press |cffffd100Ctrl+V|r. Then save it to your journal.")
+        f.primary:SetText("Save to journal")
+    end
     f.note:SetText("Waiting for the reply...")
     f:Show()
     f.box:SetFocus()

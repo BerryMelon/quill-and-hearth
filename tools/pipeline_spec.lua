@@ -188,6 +188,59 @@ end)
 
 print(("%d Lua tests passed in total"):format(passed))
 
+---------------------------------------------------------------------------
+-- Writer: stored prompts, rewriting in-game and companion entries
+---------------------------------------------------------------------------
+do
+    GetServerTime = function() return 2000000000 end
+    local W = { Pipeline = QH.Pipeline, Templates = QH.Templates }
+    assert(load(WRITER_SRC, "=Writer.lua"))("QuillAndHearth", W)
+    W.charKey = "Ari-Test"
+    W.char = { events = Log(), meta = { name = "Ari" }, state = {} }
+    W.Send = function() end
+    W.GetProfile = function() return { name = "Ari", traits = { voice = "Plain" } } end
+    QuillAndHearth_Generated = { characters = { ["Ari-Test"] = { processedThrough = 0, entries = {
+        { id = "Ari-Test:companion", t = 1, day = 1, title = "Companion Title", body = "Companion text", prompt = "COMPANION PROMPT" },
+    } } } }
+
+    test("Template entries keep their prompt", function()
+        local pending = W:GetPendingWrite()
+        assert(pending and pending.prompt:find("TITLE:"), "no pending prompt")
+        local entry = W:WriteTemplateEntry(pending)
+        eq(entry.source, "template")
+        eq(entry.prompt, pending.prompt)
+        eq(W:GetPendingWrite(), nil, "nothing left to write")
+    end)
+
+    test("Rewriting the newest entry replaces it and updates the story memory", function()
+        local entries = W:GetEntries()
+        local newest = entries[#entries]
+        local updated = W:RewriteEntry(newest.id, "TITLE: A Better Night\nENTRY:\nRicher words.\nMEMORY: Ari crossed the sea.")
+        eq(updated.title, "A Better Night")
+        eq(updated.body, "Richer words.")
+        eq(updated.source, "paste")
+        eq(W:GetJournal().memory, "Ari crossed the sea.")
+        eq(updated.prompt ~= nil, true, "prompt kept for further rewrites")
+    end)
+
+    test("Rewriting a companion entry stores an override and leaves the memory alone", function()
+        local updated = W:RewriteEntry("Ari-Test:companion", "TITLE: Overridden\nENTRY:\nNew text.\nMEMORY: should be ignored")
+        eq(updated.title, "Overridden")
+        eq(updated.rewritten, true)
+        eq(QuillAndHearth_Generated.characters["Ari-Test"].entries[1].title, "Companion Title", "generated data untouched")
+        eq(W:GetJournal().memory, "Ari crossed the sea.", "older rewrite must not rewind the story")
+        local again = W:FindEntry("Ari-Test:companion")
+        eq(again.body, "New text.")
+    end)
+
+    test("A bad paste is rejected", function()
+        local ok, err = W:RewriteEntry("Ari-Test:companion", "   ")
+        eq(ok, nil)
+        assert(err:find("Paste the AI"))
+    end)
+end
+print(("%d Lua tests passed in total (with Writer)"):format(passed))
+
 -- The live check uses the richer log (note, voyage, death, fear, errands).
 do
     local d = P.BuildDigest(P.FindSittings(Log(), 0), 1, P.DeriveHooks({ fear = "boars" }))
