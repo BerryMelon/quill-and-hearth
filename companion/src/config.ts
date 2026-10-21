@@ -8,6 +8,7 @@ export const COMPANION_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "
 export interface Config {
   geminiApiKey?: string;
   geminiModel: string;
+  geminiFallbackModel?: string;
   wowDir: string;
   account: string;
   savedVariablesPath: string;
@@ -41,7 +42,8 @@ export function loadConfig(): Config {
 
   return {
     geminiApiKey: process.env.GEMINI_API_KEY || undefined,
-    geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    geminiModel: process.env.GEMINI_MODEL || "gemini-3.5-flash",
+    geminiFallbackModel: process.env.GEMINI_FALLBACK_MODEL || "gemini-3-flash-preview",
     wowDir,
     account,
     savedVariablesPath: join(accountRoot, account, "SavedVariables", "QuillAndHearth.lua"),

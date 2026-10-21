@@ -30,6 +30,7 @@ Rules:
 - Make the journey believable. When the character moved between distant places, write the travel and WHY they went; never jump between regions without a reason. Respect the day numbers: different days need transitions such as "the next morning" or "after four days at sea".
 - Give key moments real weight and connect them to the character's fears, loves, goals and past when the moment "touches" them. Minor moments get a sentence or a passing mention. Collapsed errands get at most one line.
 - Use the quest story text for concrete detail (names, places, stakes), but retell it in the character's own words. Never copy it verbatim.
+- Only write what actually happened. A task marked "NOT finished yet" was only accepted: write about the request, the plan, or the character's feelings about it, NEVER as if it were already done. Do not invent fights, journeys or results that are not listed.
 - Companions may be named, with their class as their calling, but invent nothing about their personalities.
 - Stay consistent with the story memory. Do not repeat earlier entries.
 - Length: about 120-350 words depending on how much happened and the character's voice. Do not add a date line; the journal shows the day separately.`;

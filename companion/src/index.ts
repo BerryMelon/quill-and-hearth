@@ -28,7 +28,7 @@ function createLLM(config: Config): LLM {
   if (!config.geminiApiKey) {
     throw new Error("GEMINI_API_KEY is missing. Copy companion/.env.example to companion/.env and add your key (or use --mock-llm).");
   }
-  return new GeminiLLM(config.geminiApiKey, config.geminiModel);
+  return new GeminiLLM(config.geminiApiKey, config.geminiModel, config.geminiFallbackModel);
 }
 
 async function runOnce(config: Config, llm: LLM): Promise<void> {

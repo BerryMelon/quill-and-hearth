@@ -10,7 +10,7 @@ export function createMockLLM(): MockLLM {
   return new MockLLM((req: JsonRequest<unknown>) => {
     if (req.prompt.includes("CHARACTER BRIEF")) {
       const name = firstMatch(req.prompt, /^Name: (.+)$/m, "Someone");
-      const tasks = [...req.prompt.matchAll(/(?:completed|took on) a task "([^"]+)"/g)].map((m) => m[1]);
+      const tasks = [...req.prompt.matchAll(/(?:completed a task|took on a task \(NOT finished yet\)) "([^"]+)"/g)].map((m) => m[1]);
       const place = firstMatch(req.prompt, /Writing tonight .* at (.+)\.$/m, "the inn");
       const body = [
         `[Mock entry] ${name} writes by candlelight at ${place}.`,

@@ -130,7 +130,7 @@ export function buildDigest(events: QHEvent[], rest: QHEvent, startDay: number, 
     const moment: DigestMoment = {
       day,
       importance: info.importance,
-      kind: e.type === "quest_done" ? "completed a task" : e.type === "quest_accept" ? "took on a task" : e.type,
+      kind: e.type === "quest_done" ? "completed a task" : e.type === "quest_accept" ? "took on a task (NOT finished yet)" : e.type,
       title: e.title ?? e.instance,
       place: placeOf(e),
       story: isQuest ? cleanText(accept?.text ?? e.text) : undefined,
