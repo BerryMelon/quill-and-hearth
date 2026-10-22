@@ -109,8 +109,8 @@ local function CreateMinimapButton()
 
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetSize(17, 17)
-    icon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
-    icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
+    icon:SetTexture(QH.ICON or "Interface\\Icons\\INV_Misc_Book_09")
+    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     icon:SetPoint("TOPLEFT", 7, -6)
 
     local border = button:CreateTexture(nil, "OVERLAY")

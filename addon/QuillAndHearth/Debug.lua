@@ -28,6 +28,15 @@ local function Describe(e)
         return ("skill %s -> %s"):format(tostring(e.skill), tostring(e.rank))
     elseif t == "achievement" then
         return ("achievement %s"):format(tostring(e.achievement))
+    elseif t == "foe" then
+        return ("foe %s (%s)"):format(tostring(e.foe), tostring(e.kind or "foe"))
+    elseif t == "death" then
+        return e.killer and ("death (by %s)"):format(tostring(e.killer)) or "death"
+    elseif t == "spell_learned" then
+        return ("spell_learned %s"):format(tostring(e.spell))
+    elseif t == "money" then
+        return e.kind == "milestone" and ("money milestone (%s)"):format(tostring(e.milestone))
+            or ("money spent (%s, left %s)"):format(tostring(e.spent), tostring(e.left))
     elseif t == "level" then
         return "level up -> " .. tostring(e.level)
     elseif t == "flight_start" or t == "flight_end" then

@@ -4,6 +4,7 @@ local ADDON_NAME, QH = ...
 QH.name = ADDON_NAME
 QH.title = "Quill & Hearth"
 QH.version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "dev"
+QH.ICON = "Interface\\AddOns\\QuillAndHearth\\Media\\Icon"
 QH.DB_VERSION = 1
 
 ---------------------------------------------------------------------------

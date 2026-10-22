@@ -2,6 +2,14 @@
 
 > **2026-10-21: the companion app was removed (v0.9.0).** Copy-paste with any AI chat plus the in-game template writer cover everything, with no installs, no API keys and no privacy concerns. Flonsus's 2 companion-written entries were migrated into his saved journal (backup: `SavedVariables\QuillAndHearth.lua.before-companion-removal.bak`; the companion's data was copied to `scratch\quill-and-hearth-companion-backup`). The companion code is still in git history (last commit with it: `2509049`). Sections below that mention the companion are historical.
 
+## v0.11.0 (G1, G3, G4, G5, I4, K1)
+- **G1 (Foes & deaths):** Tracks the hostile target (`PLAYER_TARGET_CHANGED` / `PLAYER_REGEN_DISABLED` / `PLAYER_REGEN_ENABLED`) so `PLAYER_DEAD` records what killed you (`killer`, `killerKind`), and defeating a notable foe (`elite`, `rare`, `rare elite`, `boss`) records a `foe` moment (once per foe per sitting).
+- **G3 (Spells learned):** `LEARNED_SPELL_IN_TAB` captures newly learned abilities (skipping Rank > 1 upgrades and deduplicating per character) as `spell_learned` moments.
+- **G4 (Weather & environment):** `PushRest` records `indoors = IsIndoors()`, and the unwritten page offers optional weather/atmosphere buttons (`Clear sky`, `Rain`, `Fog`, `Wind`, `Snow`, `Hearthfire`) alongside Mood, woven into both the AI prompt and the plain template writer.
+- **G5 (Coin milestones & heavy spends):** `PLAYER_MONEY` captures first-time coin milestones (`first silver coin` at <= L10, `first gold piece`, `10g`, `100g`, `1000g`, pre-marked on `READY` so existing characters don't false-trigger) and heavy trainer/repair/mount expenses that leave your pouch nearly empty.
+- **I4 (Dynamic writing ritual emotes):** Replaced `/read` with `/sit` + context-aware `/e` chat emotes (`QH:PickRitualEmote` varies by campfire, indoors/tavern, and mood), with a separate `ritualEmote` checkbox in Options so players can mute public `/e` chat in crowded cities while keeping `/sit` + book sound.
+- **K1 (Custom icon & release packager):** `tools/pack.mjs` (`npm run pack`) generates the 64x64 32-bit uncompressed `addon/QuillAndHearth/Media/Icon.tga` (used in `QuillAndHearth.toc`, journal portrait, and minimap button) and builds `dist/QuillAndHearth-v0.11.0.zip`. 30 Lua tests.
+
 ## v0.10.3
 - Entry tools are now **Edit**, a **star** (favourite; raid-marker star icon, gold/faded) and a **delete** button (red X) with a confirmation ("the entry and its prompt will be lost for good"). Hide and the Show-hidden filter were removed; previously hidden entries are unhidden once. Deleting a chapter's first entry moves its saved chapter summary to the next entry. The nights a deleted entry covered stay written (no new unwritten page).
 

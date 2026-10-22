@@ -126,8 +126,10 @@ function QH:PushRest(kind, how)
         return -- nothing new happened since the last rest
     end
     local hour, minute = GetGameTime()
+    local indoors = IsIndoors and Safe(IsIndoors()) and true or nil
+    if self.char then self.char.state.slainFoes = nil end
     self:Push("rest", { kind = kind, how = how, home = GetBindLocation(), hour = hour, minute = minute,
-        abilities = self:TakeAbilitySummary(6) })
+        indoors = indoors, abilities = self:TakeAbilitySummary(6) })
 end
 
 ---------------------------------------------------------------------------

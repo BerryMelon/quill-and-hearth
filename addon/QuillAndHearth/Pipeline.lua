@@ -118,7 +118,7 @@ end
 ---------------------------------------------------------------------------
 local function TextOf(e)
     local parts = {}
-    for _, k in ipairs({ "title", "text", "objectives", "rewardText", "questLine", "instance", "zone" }) do
+    for _, k in ipairs({ "title", "text", "objectives", "rewardText", "questLine", "instance", "zone", "foe", "killer", "spell" }) do
         if type(e[k]) == "string" then table.insert(parts, e[k]) end
     end
     return table.concat(parts, " "):lower()
@@ -151,6 +151,12 @@ function P.Score(e, hooks)
         add(6, "entered a dungeon")
     elseif t == "death" then
         add(5, "died")
+    elseif t == "foe" then
+        add((e.kind == "rare" or e.kind == "rare elite" or e.kind == "boss") and 4 or 3, "fought a notable foe")
+    elseif t == "spell_learned" then
+        add(3, "learned a new ability")
+    elseif t == "money" then
+        add(e.kind == "milestone" and 4 or 2, "coin and trade")
     elseif t == "level" then
         if (e.level or 0) % 10 == 0 then add(5, "level milestone") else add(2, "grew stronger") end
     elseif t == "bind" then
@@ -309,7 +315,30 @@ function P.BuildDigest(sittings, startDay, hooks)
                     m.title = e.continentChanged and ("Arrived in " .. (e.continent or "a new land")) or ("First time in " .. (e.zone or "?"))
                 elseif e.type == "death" then
                     m.kind = e.first and "was struck down (for the first time ever)" or "was struck down"
+                    if e.killer then
+                        m.killer = e.killer
+                        m.killerKind = e.killerKind
+                        m.kind = m.kind .. " by " .. e.killer .. (e.killerKind and (" (" .. e.killerKind .. ")") or "")
+                    end
                     if e.first then reflections["the first time they were struck down"] = true end
+                elseif e.type == "foe" then
+                    m.kind = ("slew a %s foe"):format(e.kind or "formidable")
+                    m.title = e.foe
+                    m.foeKind = e.kind
+                elseif e.type == "spell_learned" then
+                    m.kind = "learned a new ability"
+                    m.title = e.spell
+                elseif e.type == "money" then
+                    if e.kind == "milestone" then
+                        m.kind = "saved up"
+                        m.title = e.milestone or "a pouch of coin"
+                        m.moneyKind = "milestone"
+                    else
+                        m.kind = ("spent %s and was left with %s"):format(e.spent or "most of their coin", e.left or "nearly nothing")
+                        m.moneyKind = "spent"
+                        m.spent = e.spent
+                        m.left = e.left
+                    end
                 elseif e.type == "note" then
                     m.kind = "personal note (the player's own words)"
                     m.note = P.Clean(e.text, 500)
@@ -388,6 +417,7 @@ function P.BuildDigest(sittings, startDay, hooks)
         nights = #sittings,
         restPlace = PlaceOf(lastRest),
         restKind = lastRest.kind,
+        indoors = lastRest.indoors,
         lastRest = lastRest,
         level = lastRest.level,
         abilities = abilities,
@@ -530,7 +560,9 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
     end
     line()
     line("WHAT HAPPENED SINCE THE LAST ENTRY")
-    line(("Writing tonight %s at %s%s."):format(digest.restKind == "campfire" and "by a campfire" or "somewhere safe",
+    local whereHow = digest.restKind == "campfire" and "by a campfire"
+        or (digest.indoors and "indoors somewhere safe" or "somewhere safe")
+    line(("Writing tonight %s at %s%s."):format(whereHow,
         digest.restPlace, digest.timeOfDay and (", " .. digest.timeOfDay) or ""))
     if digest.startDay == digest.endDay then
         line(("Covers day %d."):format(digest.startDay))
@@ -539,6 +571,9 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
     end
     if opts.mood then
         line(("The character's mood tonight: %s. Let it colour the whole entry."):format(opts.mood))
+    end
+    if opts.weather then
+        line(("The weather / atmosphere tonight: %s. Weave it naturally into the setting."):format(opts.weather))
     end
     if digest.level then
         line(("The character is level %d%s."):format(digest.level,

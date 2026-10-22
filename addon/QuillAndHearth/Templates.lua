@@ -128,6 +128,44 @@ B.death = {
     Poetic = { "Darkness took me near {place}, and for a moment there was nothing. Then the spirit healer's light.", "I fell near {place}, and the world went grey and silent before it let me back." },
     Terse = { "Died near {place}. Spirit healer. Back on my feet.", "Struck down at {place}. Woke at a spirit healer." },
 }
+B.deathBy = {
+    Plain = { "{killer} struck me down near {place}; I woke at a spirit healer's side, still shaken.", "I lost a fight with {killer} near {place} and came to at a spirit healer." },
+    Formal = { "I fell to {killer} near {place}, and only a spirit healer returned me to the world.", "Overcome by {killer} near {place}, I awoke in the care of a spirit healer." },
+    Poetic = { "{killer} brought me down near {place}, and the world went grey before the spirit healer's light called me back.", "I fell before {killer} near {place}; for a breath there was only silence." },
+    Terse = { "{killer} got me near {place}. Spirit healer. Still breathing.", "Fell to {killer} at {place}. Back on my feet." },
+}
+B.foe = {
+    Plain = { "I brought down {foe} near {place}. That was no small fight.", "I crossed paths with {foe} near {place} and walked away the victor." },
+    Formal = { "I engaged and defeated {foe} near {place}.", "Near {place}, I prevailed against {foe}." },
+    Poetic = { "{foe} stood in my way near {place}, and fell before the dust settled.", "A fierce struggle near {place}, and {foe} is no more." },
+    Terse = { "Killed {foe} near {place}. Tough fight.", "{foe} at {place}. Down." },
+}
+B.spellLearned = {
+    Plain = { "I've learned a new art: {spell}. It already feels natural.", "With some training, I've mastered the basics of {spell}." },
+    Formal = { "I have been instructed in {spell}, a discipline I intend to put to use.", "My training has yielded a new capability: {spell}." },
+    Poetic = { "Something new answers when I reach for it now: {spell}.", "{spell} — a new note in the song of what I can do." },
+    Terse = { "Learned {spell}.", "New trick: {spell}." },
+}
+B.moneyMilestone = {
+    Plain = { "I counted my pouch tonight and smiled: {milestone} of my own.", "My coin pouch is heavier than it's ever been — {milestone}." },
+    Formal = { "My savings have reached a modest milestone: {milestone}.", "Through steady effort, I have accumulated {milestone}." },
+    Poetic = { "Coins clink softly in my pouch tonight: {milestone}, earned the hard way.", "For the first time, I hold {milestone} in my own hand." },
+    Terse = { "Saved up {milestone}.", "Pouch holds {milestone} now." },
+}
+B.moneySpent = {
+    Plain = { "Training and supplies took {spent} out of my pouch, leaving me with {left}.", "I parted with {spent} today and have only {left} to my name." },
+    Formal = { "Necessary expenses required {spent}, leaving me with {left}.", "After disbursing {spent} on training and provisions, {left} remains." },
+    Poetic = { "{spent} vanished into eager hands today; my pouch is light again, down to {left}.", "Coin goes faster than it comes: {spent} spent, {left} left." },
+    Terse = { "Spent {spent}. Down to {left}.", "Broke again. {left} left." },
+}
+B.weather = {
+    ["Clear sky"] = "The sky outside is clear and full of stars.",
+    Rain = "Rain taps steadily against the ground outside.",
+    Fog = "A thick fog hangs low over everything tonight.",
+    Wind = "The wind hasn't stopped howling all evening.",
+    Snow = "Snow is falling quietly outside.",
+    Hearthfire = "The hearthfire throws a steady, comforting warmth across the room.",
+}
 B.level = {
     Plain = { "I feel stronger than I did a few days ago.", "Something has changed in me. I'm more capable than before." },
     Formal = { "I find my abilities much improved of late.", "My skills have grown considerably." },
@@ -292,6 +330,9 @@ function T.Write(digest, profile, opts)
     if digest.timeOfDay then
         opening = opening .. " " .. say(B.time, { time = digest.timeOfDay, Time = Capitalize(digest.timeOfDay) })
     end
+    if opts.weather and B.weather[opts.weather] then
+        opening = opening .. " " .. B.weather[opts.weather]
+    end
     table.insert(paragraphs, opening)
 
     -- One timeline of journey beats and story moments, in the order they happened.
@@ -299,7 +340,8 @@ function T.Write(digest, profile, opts)
     for _, j in ipairs(digest.journey) do
         if j.event then table.insert(timeline, { seq = j.event.seq, day = j.day, journey = j.event }) end
     end
-    local SPECIFIC = { loot = true, reputation = true, skill = true, achievement = true, camp = true }
+    local SPECIFIC = { loot = true, reputation = true, skill = true, achievement = true, camp = true,
+        foe = true, spell_learned = true, money = true }
     local notes, minors = {}, {}
     local titleKind, titleVars
     for _, thread in ipairs(digest.threads) do
@@ -353,8 +395,23 @@ function T.Write(digest, profile, opts)
                 sentence(say(B.taskAccepted, vars), m.day)
                 if m.giver then sentence(say(m.metBefore and B.giverAgain or B.giver, { giver = m.giver })) end
             elseif t == "death" then
-                sentence(say(B.death, vars), m.day)
+                if m.killer then
+                    vars.killer = m.killer
+                    sentence(say(B.deathBy, vars), m.day)
+                else
+                    sentence(say(B.death, vars), m.day)
+                end
                 titleKind, titleVars = "death", vars
+            elseif t == "foe" then
+                sentence(say(B.foe, { foe = m.title or "a fierce foe", place = m.place }), m.day)
+            elseif t == "spell_learned" then
+                sentence(say(B.spellLearned, { spell = m.title or "a new skill" }), m.day)
+            elseif t == "money" then
+                if m.moneyKind == "milestone" then
+                    sentence(say(B.moneyMilestone, { milestone = m.title or "some coin" }), m.day)
+                else
+                    sentence(say(B.moneySpent, { spent = m.spent or "much of my coin", left = m.left or "little" }), m.day)
+                end
             elseif t == "level" then
                 sentence(say(B.level, vars), m.day)
             elseif t == "instance_enter" then

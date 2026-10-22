@@ -5,8 +5,9 @@ local DEFAULTS = {
     textSize = "medium",   -- small | medium | large
     length = "normal",     -- short | normal | long (AI prompt)
     autoOpen = true,       -- open the journal on the unwritten page after resting / logging back in
-    moodPrompt = true,     -- offer a mood choice on the unwritten page
-    ritual = true,         -- /sit, /e emote and book sounds when the journal opens after a rest
+    moodPrompt = true,     -- offer mood and weather choices on the unwritten page
+    ritual = true,         -- /sit and book sounds when the journal opens after a rest
+    ritualEmote = true,    -- also send a context-aware /e emote to chat when resting to write
 }
 QH.SETTING_DEFAULTS = DEFAULTS
 
@@ -108,15 +109,16 @@ local function BuildPanel()
     Choice(panel, "Entry length (AI)", "length", {
         { value = "short", label = "Short" }, { value = "normal", label = "Normal" }, { value = "long", label = "Long" },
     }, -162)
-    Checkbox(panel, "Ask for my character's mood when I rest", "Offers a few moods on the unwritten page. It sets the tone of the entry.", "moodPrompt", -190)
+    Checkbox(panel, "Ask for mood and weather when I rest", "Offers mood and weather/atmosphere choices on the unwritten page to set the tone of the entry.", "moodPrompt", -190)
 
     Header(panel, "Resting", -236)
     Checkbox(panel, "Open the journal when I rest", "After resting (or logging back in after a rest), the journal opens on the unwritten page.", "autoOpen", -258)
-    Checkbox(panel, "Writing ritual (emote and sounds)", "Your character sits down (/sit), emotes opening their journal (/e), and you hear the book open when resting to write.", "ritual", -286)
+    Checkbox(panel, "Writing ritual (/sit and book sound)", "Your character sits down (/sit) and you hear the book open when resting to write.", "ritual", -286)
+    Checkbox(panel, "Send a /e journal emote in chat when resting", "Sends a context-aware /e emote (campfire, tavern, or mood) when the writing ritual plays. Turn off if you prefer not to emote in crowded places.", "ritualEmote", -314)
 
-    Header(panel, "Other", -332)
+    Header(panel, "Other", -360)
     local minimap = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
-    minimap:SetPoint("TOPLEFT", 14, -354)
+    minimap:SetPoint("TOPLEFT", 14, -382)
     local mmText = minimap:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     mmText:SetPoint("LEFT", minimap, "RIGHT", 2, 0)
     mmText:SetText("Show the minimap button")

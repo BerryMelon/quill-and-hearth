@@ -5,7 +5,8 @@
   "scripts": {
     "lua:check": "node tools/lua-check.mjs",
     "lua:test": "node tools/lua-test.mjs",
-    "lua:live": "node tools/lua-test.mjs --live"
+    "lua:live": "node tools/lua-test.mjs --live",
+    "pack": "node tools/lua-check.mjs && node tools/lua-test.mjs && node tools/pack.mjs"
   },
   "devDependencies": {
     "fengari": "^0.1.5",

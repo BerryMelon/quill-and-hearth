@@ -281,14 +281,47 @@ QH:On("HEARTHSTONE_BOUND", function()
 end)
 
 ---------------------------------------------------------------------------
--- Growth & hardship
+-- Growth, foes & hardship (G1, G3)
 ---------------------------------------------------------------------------
+local NOTABLE_FOE = { elite = "elite", rare = "rare", rareelite = "rare elite", worldboss = "boss" }
+local lastFoe -- { name, kind, level, t }
+
+local function InspectTargetFoe()
+    if not (UnitExists and UnitExists("target")) then return end
+    if UnitIsPlayer and Safe(UnitIsPlayer("target")) then return end
+    if UnitCanAttack and not Safe(UnitCanAttack("player", "target")) then return end
+    local name = Safe(UnitName("target"))
+    if type(name) ~= "string" or name == "" then return end
+    local rawKind = UnitClassification and Safe(UnitClassification("target")) or nil
+    local kind = rawKind and NOTABLE_FOE[rawKind] or nil
+    local level = UnitLevel and Safe(UnitLevel("target")) or nil
+    lastFoe = { name = name, kind = kind, level = level, t = GetServerTime() }
+
+    if kind and UnitIsDead and Safe(UnitIsDead("target")) and QH.char then
+        local s = QH.char.state
+        s.slainFoes = s.slainFoes or {}
+        if not s.slainFoes[name] then
+            s.slainFoes[name] = true
+            QH:Push("foe", { foe = name, kind = kind, foeLevel = level })
+        end
+    end
+end
+
+QH:On("PLAYER_TARGET_CHANGED", InspectTargetFoe)
+QH:On("PLAYER_REGEN_DISABLED", InspectTargetFoe)
+QH:On("PLAYER_REGEN_ENABLED", InspectTargetFoe)
+
 QH:On("PLAYER_LEVEL_UP", function(_, newLevel)
     QH:Push("level", { level = newLevel })
 end)
 
 QH:On("PLAYER_DEAD", function()
-    QH:Push("death", { first = QH:MarkFirst("death") or nil })
+    InspectTargetFoe()
+    local killer, killerKind
+    if lastFoe and (GetServerTime() - (lastFoe.t or 0)) <= 60 then
+        killer, killerKind = lastFoe.name, lastFoe.kind
+    end
+    QH:Push("death", { first = QH:MarkFirst("death") or nil, killer = killer, killerKind = killerKind })
 end)
 
 --- True the first time this kind of thing ever happens to the character (for reflections).
@@ -300,6 +333,88 @@ function QH:MarkFirst(kind)
     s.firsts[kind] = true
     return true
 end
+
+-- G3: new spells learned (skip Rank > 1 upgrades so rank II/III/IV doesn't clutter the journal).
+QH:On("LEARNED_SPELL_IN_TAB", function(_, spellID)
+    spellID = Safe(spellID)
+    if type(spellID) ~= "number" or not QH.char then return end
+    local name = C_Spell and C_Spell.GetSpellName and Safe(C_Spell.GetSpellName(spellID))
+    if type(name) ~= "string" or name == "" then return end
+    local subtext = (C_Spell and C_Spell.GetSpellSubtext and Safe(C_Spell.GetSpellSubtext(spellID)))
+        or (GetSpellSubtext and Safe(GetSpellSubtext(spellID))) or nil
+    local rank = type(subtext) == "string" and tonumber(subtext:match("(%d+)")) or nil
+    if rank and rank > 1 then return end
+    local s = QH.char.state
+    s.learnedSpells = s.learnedSpells or {}
+    if s.learnedSpells[name] then return end
+    s.learnedSpells[name] = true
+    QH:Push("spell_learned", { spell = name, spellID = spellID })
+end)
+
+---------------------------------------------------------------------------
+-- Coin milestones & heavy expenses (G5)
+---------------------------------------------------------------------------
+local MONEY_MILESTONES = {
+    { copper = 100,      key = "money_1s",    label = "their first silver coin",       maxLevel = 10 },
+    { copper = 10000,    key = "money_1g",    label = "their first gold piece" },
+    { copper = 100000,   key = "money_10g",   label = "ten gold pieces" },
+    { copper = 1000000,  key = "money_100g",  label = "one hundred gold pieces" },
+    { copper = 10000000, key = "money_1000g", label = "one thousand gold pieces" },
+}
+
+local function FormatCoins(copper)
+    copper = math.max(0, math.floor(tonumber(copper) or 0))
+    local g = math.floor(copper / 10000)
+    local s = math.floor((copper % 10000) / 100)
+    local c = copper % 100
+    if g > 0 then
+        return s > 0 and ("%d gold and %d silver"):format(g, s) or ("%d gold"):format(g)
+    elseif s > 0 then
+        return ("%d silver"):format(s)
+    end
+    return ("%d copper"):format(c)
+end
+
+QH.FormatCoins = FormatCoins -- exposed for tests
+
+QH:Listen("READY", function()
+    if not (QH.char and GetMoney) then return end
+    local s = QH.char.state
+    local now = Safe(GetMoney())
+    if type(now) ~= "number" then return end
+    s.lastMoney = now
+    s.firsts = s.firsts or {}
+    for _, ms in ipairs(MONEY_MILESTONES) do
+        if now >= ms.copper then s.firsts[ms.key] = true end
+    end
+end)
+
+QH:On("PLAYER_MONEY", function()
+    if not (QH.char and GetMoney) then return end
+    local now = Safe(GetMoney())
+    if type(now) ~= "number" then return end
+    local s = QH.char.state
+    local prev = s.lastMoney or now
+    s.lastMoney = now
+
+    if now > prev then
+        local level = Safe(UnitLevel("player")) or 1
+        local reached
+        for _, ms in ipairs(MONEY_MILESTONES) do
+            if prev < ms.copper and now >= ms.copper and (not ms.maxLevel or level <= ms.maxLevel) then
+                if QH:MarkFirst(ms.key) then reached = ms end
+            end
+        end
+        if reached then
+            QH:Push("money", { kind = "milestone", milestone = reached.label, copper = now })
+        end
+    elseif prev >= 1000 and (prev - now) >= 1000 and now <= prev * 0.15 then
+        if GetServerTime() - (s.lastSpendEvent or 0) > 30 * 60 then
+            s.lastSpendEvent = GetServerTime()
+            QH:Push("money", { kind = "spent", spent = FormatCoins(prev - now), left = FormatCoins(now) })
+        end
+    end
+end)
 
 ---------------------------------------------------------------------------
 -- More moments: notable loot, reputation, profession milestones, achievements
