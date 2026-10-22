@@ -479,7 +479,8 @@ function P.DescribeCharacter(profile, meta)
     end
     if profile then
         addBlock("Fears", profile.fear)
-        addBlock("Past", profile.past)
+        addBlock("Appearance", profile.appearance)
+        addBlock("Background / past", profile.past)
     end
 
     local d = profile and profile.trp3

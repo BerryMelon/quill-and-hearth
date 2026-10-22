@@ -168,7 +168,8 @@ QH:RegisterCommand("profile", "show what the journal knows about your character"
             tostring(t.drive), tostring(t.voice)))
     end
     if p.fear then print("  Fears: " .. p.fear) end
-    if p.past then print("  Past: " .. p.past) end
+    if p.appearance then print("  Appearance: " .. p.appearance) end
+    if p.past then print("  Background: " .. (#p.past > 200 and (p.past:sub(1, 200) .. "...") or p.past)) end
     if p.trp3 then
         local d = p.trp3
         if d.personality then print(("  %d personality traits imported."):format(#d.personality)) end

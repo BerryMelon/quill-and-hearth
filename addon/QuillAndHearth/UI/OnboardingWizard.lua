@@ -193,10 +193,10 @@ function Wizard:Build()
             end)
         end
         if def.extras then
-            AddText(page, "Something they fear |cff999999(optional)|r", "GameFontNormal", 4)
-            self.fearBox = AddEditBox(page, 360, 80, 8)
-            AddText(page, "One line about their past |cff999999(optional)|r", "GameFontNormal", 4)
-            self.pastBox = AddEditBox(page, 420, 200, 8)
+            AddText(page, "Something they fear or hate |cff999999(optional — becomes a personal hook in the journal)|r", "GameFontNormal", 4)
+            self.fearBox = AddEditBox(page, 420, 160, 8)
+            AddText(page, "Appearance & notable details |cff999999(optional — e.g. scars, homeland, mannerisms)|r", "GameFontNormal", 4)
+            self.appearanceBox = AddEditBox(page, 420, 240, 8)
         end
         page.validate = function()
             for _, q in ipairs(def.questions) do
@@ -205,6 +205,48 @@ function Wizard:Build()
             return true
         end
     end
+
+    -- Page 5: full character background / biography (multi-line)
+    local p5 = NewPage()
+    AddText(p5, "Their background", "GameFontNormalLarge", 10)
+    AddText(p5, "Write or paste as much as you like about your character's history, homeland, family, beliefs, or how their journey began. The AI will know all of this when writing their journal. |cff999999(optional)|r", nil, 12)
+    AddText(p5, "Background & history", "GameFontNormal", 6)
+
+    local bgScroll = CreateFrame("ScrollFrame", "QuillAndHearthWizardPastScroll", p5, "UIPanelScrollFrameTemplate")
+    bgScroll:SetPoint("TOPLEFT", p5, "TOPLEFT", 4, -p5.cursor)
+    bgScroll:SetPoint("BOTTOMRIGHT", p5, "BOTTOMRIGHT", -24, 24)
+    local bgBackdrop = p5:CreateTexture(nil, "BACKGROUND")
+    bgBackdrop:SetPoint("TOPLEFT", bgScroll, "TOPLEFT", -4, 4)
+    bgBackdrop:SetPoint("BOTTOMRIGHT", bgScroll, "BOTTOMRIGHT", 4, -4)
+    bgBackdrop:SetColorTexture(0, 0, 0, 0.35)
+
+    local pastBox = CreateFrame("EditBox", nil, bgScroll)
+    pastBox:SetMultiLine(true)
+    pastBox:SetAutoFocus(false)
+    pastBox:SetMaxLetters(10000)
+    pastBox:SetFontObject("ChatFontNormal")
+    pastBox:SetWidth(TEXT_WIDTH - 24)
+    pastBox:SetScript("OnEscapePressed", pastBox.ClearFocus)
+    pastBox:SetScript("OnCursorChanged", function(_, _, y, _, h)
+        local offset = bgScroll:GetVerticalScroll()
+        local viewH = bgScroll:GetHeight()
+        if -y < offset then
+            bgScroll:SetVerticalScroll(-y)
+        elseif -y + h > offset + viewH then
+            bgScroll:SetVerticalScroll(-y + h - viewH)
+        end
+    end)
+    bgScroll:SetScrollChild(pastBox)
+    bgScroll:SetScript("OnSizeChanged", function(_, w) pastBox:SetWidth(w) end)
+    bgScroll:EnableMouse(true)
+    bgScroll:SetScript("OnMouseDown", function() pastBox:SetFocus() end)
+    self.pastBox = pastBox
+
+    self.pastCount = p5:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    self.pastCount:SetPoint("TOPLEFT", bgScroll, "BOTTOMLEFT", 0, -6)
+    pastBox:SetScript("OnTextChanged", function(box)
+        self.pastCount:SetText(("%d / 10000 characters"):format(#(box:GetText() or "")))
+    end)
 
     -- Footer
     self.back = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -248,7 +290,9 @@ function Wizard:LoadState()
     self.classGroup:Set(self.state.classChoice)
     for key, group in pairs(self.traitGroups) do group:Set(self.state.traits[key]) end
     self.fearBox:SetText(manual and manual.fear or "")
+    self.appearanceBox:SetText(manual and manual.appearance or "")
     self.pastBox:SetText(manual and manual.past or "")
+    self.pastCount:SetText(("%d / 10000 characters"):format(#(self.pastBox:GetText() or "")))
 end
 
 function Wizard:Refresh()
@@ -301,6 +345,7 @@ function Wizard:Finish()
         useGameClass = useGameClass,
         traits = traits,
         fear = OptionalText(self.fearBox),
+        appearance = OptionalText(self.appearanceBox),
         past = OptionalText(self.pastBox),
     })
     self.frame:Hide()
