@@ -158,14 +158,6 @@ B.moneySpent = {
     Poetic = { "{spent} vanished into eager hands today; my pouch is light again, down to {left}.", "Coin goes faster than it comes: {spent} spent, {left} left." },
     Terse = { "Spent {spent}. Down to {left}.", "Broke again. {left} left." },
 }
-B.weather = {
-    ["Clear sky"] = "The sky outside is clear and full of stars.",
-    Rain = "Rain taps steadily against the ground outside.",
-    Fog = "A thick fog hangs low over everything tonight.",
-    Wind = "The wind hasn't stopped howling all evening.",
-    Snow = "Snow is falling quietly outside.",
-    Hearthfire = "The hearthfire throws a steady, comforting warmth across the room.",
-}
 B.level = {
     Plain = { "I feel stronger than I did a few days ago.", "Something has changed in me. I'm more capable than before." },
     Formal = { "I find my abilities much improved of late.", "My skills have grown considerably." },
@@ -329,9 +321,6 @@ function T.Write(digest, profile, opts)
     local opening = say(digest.restKind == "campfire" and B.openCampfire or B.openRested, { place = restPlace })
     if digest.timeOfDay then
         opening = opening .. " " .. say(B.time, { time = digest.timeOfDay, Time = Capitalize(digest.timeOfDay) })
-    end
-    if opts.weather and B.weather[opts.weather] then
-        opening = opening .. " " .. B.weather[opts.weather]
     end
     table.insert(paragraphs, opening)
 

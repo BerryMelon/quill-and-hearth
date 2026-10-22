@@ -359,6 +359,12 @@ test("Chat patterns built from Blizzard format strings", function()
     eq(C.FormatCoins(350), "3 silver")
     eq(C.FormatCoins(12500), "1 gold and 25 silver")
     eq(C.FormatCoins(20000), "2 gold")
+    eq(C.IsAbilityCast("Smite"), true)
+    eq(C.IsAbilityCast("LOGINEFFECT"), false)
+    eq(C.IsAbilityCast("Opening - No Text"), false)
+    eq(C.IsAbilityCast("Drink"), false)
+    eq(C.IsAbilityCast("Herbalism Skill"), false)
+    eq(C.IsAbilityCast("Find Herbs"), false)
 end)
 
 do
@@ -473,7 +479,7 @@ do
         assert(again, "plain entry should recognise a familiar face:\n" .. entry.body)
     end)
 
-    test("v0.11: killer on death, notable foes, new spells learned, coin milestones/spends, and weather", function()
+    test("v0.11: killer on death, notable foes, new spells learned, coin milestones/spends, and indoors", function()
         local events = {
             { seq = 1, t = 100, type = "foe", foe = "Hogger", kind = "elite", zone = "Elwynn Forest", level = 10 },
             { seq = 2, t = 120, type = "death", killer = "Defias Pillager", killerKind = "normal", zone = "Westfall", level = 10 },
@@ -485,11 +491,9 @@ do
         W.char.events = events
         W.char.journal = nil
         W:SetPendingMood("Weary")
-        W:SetPendingWeather("Rain")
         local pending = W:GetPendingWrite()
         local prompt = pending.prompt
         assert(prompt:find("indoors somewhere safe at The Broken Tusk, Orgrimmar, in the evening", 1, true), "indoors + evening")
-        assert(prompt:find("The weather / atmosphere tonight: Rain", 1, true), "weather in prompt")
         assert(prompt:find('slew a elite foe "Hogger"', 1, true), "notable foe in prompt")
         assert(prompt:find("was struck down by Defias Pillager (normal)", 1, true), "killer in prompt")
         assert(prompt:find('learned a new ability "Ghost Wolf"', 1, true), "learned spell in prompt")
@@ -497,9 +501,7 @@ do
         assert(prompt:find("spent 90 silver and was left with 4 silver", 1, true), "coin spend in prompt")
 
         local entry = W:WriteTemplateEntry(pending)
-        eq(entry.weather, "Rain")
-        eq(W.char.state.pendingWeather, nil)
-        for _, needle in ipairs({ "Rain taps steadily", "Hogger", "Defias Pillager", "Ghost Wolf", "their first gold piece", "90 silver" }) do
+        for _, needle in ipairs({ "Hogger", "Defias Pillager", "Ghost Wolf", "their first gold piece", "90 silver" }) do
             assert(entry.body:find(needle, 1, true), "missing " .. needle .. " in:\n" .. entry.body)
         end
     end)

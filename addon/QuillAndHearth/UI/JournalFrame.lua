@@ -12,7 +12,6 @@ local INK = { 0.24, 0.15, 0.08 }      -- dark brown text on parchment
 local INK_SOFT = { 0.45, 0.32, 0.20 }
 local PENDING = "pending"
 local MOODS = { "Weary", "Triumphant", "Troubled", "Grieving", "Hopeful", "Content" }
-local WEATHERS = { "Clear sky", "Rain", "Fog", "Wind", "Snow", "Hearthfire" }
 
 local RITUAL_EMOTES = {
     campfire = {
@@ -335,27 +334,7 @@ function Journal:Build()
         self:LayoutPage()
     end)
 
-    -- Mood (B2) and Weather / Setting (G4), shown on the unwritten page
-    self.weatherLabel = page:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    self.weatherLabel:SetTextColor(INK[1], INK[2], INK[3])
-    self.weatherLabel:SetText("Outside / setting:")
-    self.weatherButtons = {}
-    local prevW
-    for _, weather in ipairs(WEATHERS) do
-        local b = SmallButton(page, weather, 78)
-        b:SetHeight(20)
-        if prevW then b:SetPoint("LEFT", prevW, "RIGHT", 2, 0) else b:SetPoint("LEFT", self.weatherLabel, "RIGHT", 6, 0) end
-        b:SetScript("OnClick", function()
-            local current = QH.char.state.pendingWeather
-            QH:SetPendingWeather(current ~= weather and weather or nil)
-            self:Refresh(PENDING)
-        end)
-        b.weather = weather
-        table.insert(self.weatherButtons, b)
-        prevW = b
-    end
-    self.weatherLabel:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 30, 74)
-
+    -- Mood (B2), shown on the unwritten page
     self.moodLabel = page:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     self.moodLabel:SetTextColor(INK[1], INK[2], INK[3])
     self.moodLabel:SetText("Tonight I feel:")
@@ -588,16 +567,10 @@ function Journal:ShowPage(day, title, place, body, opts)
     for _, b in ipairs(self.tools) do b:SetShown(opts.tools == true) end
     local moodShown = opts.mood == true
     self.moodLabel:SetShown(moodShown)
-    self.weatherLabel:SetShown(moodShown)
     local current = QH.char.state.pendingMood
     for _, b in ipairs(self.moodButtons) do
         b:SetShown(moodShown)
         if b.mood == current then b:LockHighlight() else b:UnlockHighlight() end
-    end
-    local currentW = QH.char.state.pendingWeather
-    for _, b in ipairs(self.weatherButtons) do
-        b:SetShown(moodShown)
-        if b.weather == currentW then b:LockHighlight() else b:UnlockHighlight() end
     end
 
     local function setup(button, spec, which)
@@ -617,7 +590,7 @@ function Journal:ShowPage(day, title, place, body, opts)
 
     local bottom = 16
     if opts.primary or opts.secondary then bottom = 48 end
-    if moodShown then bottom = 102 end
+    if moodShown then bottom = 78 end
     self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -38, bottom)
     self.scroll:SetPoint("TOPLEFT", self.page, "TOPLEFT", 30, opts.tools and -40 or -22)
     self:LayoutPage()
@@ -671,7 +644,6 @@ function Journal:ShowEntryPage(e)
     local notes = {}
     if e.level then table.insert(notes, ("level %d"):format(e.level)) end
     if e.mood then table.insert(notes, e.mood:lower()) end
-    if e.weather then table.insert(notes, e.weather:lower()) end
     if e.source == "template" then table.insert(notes, "written plainly") end
     if e.rewrittenAt then table.insert(notes, "rewritten") end
     if e.editedAt then table.insert(notes, "edited") end
@@ -802,15 +774,13 @@ function Journal:Open(opts)
         if PlaySound and SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_OPEN then PlaySound(SOUNDKIT.IG_SPELLBOOK_OPEN) end
         if opts.emote ~= false and not InCombatLockdown() then
             if DoEmote then pcall(DoEmote, "SIT") end
-            if QH:GetSetting("ritualEmote") then
-                local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
-                if send then
-                    local d = self.pending and self.pending.digest
-                    local restKind = (d and d.restKind) or QH:GetRestKind()
-                    local indoors = (d and d.indoors) or (IsIndoors and QH.Safe(IsIndoors()))
-                    local emote = QH:PickRitualEmote(restKind, state.pendingMood, indoors)
-                    pcall(send, emote, "EMOTE")
-                end
+            if QH:GetSetting("ritualEmote") and DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+                local d = self.pending and self.pending.digest
+                local restKind = (d and d.restKind) or QH:GetRestKind()
+                local indoors = (d and d.indoors) or (IsIndoors and QH.Safe(IsIndoors()))
+                local emote = QH:PickRitualEmote(restKind, state.pendingMood, indoors)
+                local who = QH.Safe(UnitName("player")) or name or "Your character"
+                DEFAULT_CHAT_FRAME:AddMessage(("|cffff8040%s %s|r"):format(who, emote))
             end
         end
     elseif not wasShown and PlaySound and SOUNDKIT and SOUNDKIT.IG_QUEST_LOG_OPEN then

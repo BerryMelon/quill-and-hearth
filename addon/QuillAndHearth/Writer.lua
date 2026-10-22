@@ -53,22 +53,17 @@ local function NextDay()
     return day
 end
 
---- Options for tonight's writing: the mood and weather picked on the unwritten page, and the length setting.
+--- Options for tonight's writing: the mood picked on the unwritten page, and the length setting.
 function QH:GetWriteOptions()
     local ask = self:GetSetting("moodPrompt")
     return {
         mood = ask and self.char.state.pendingMood or nil,
-        weather = ask and self.char.state.pendingWeather or nil,
         length = self:GetSetting("length"),
     }
 end
 
 function QH:SetPendingMood(mood)
     self.char.state.pendingMood = mood
-end
-
-function QH:SetPendingWeather(weather)
-    self.char.state.pendingWeather = weather
 end
 
 function QH:IsAISessionStarted()
@@ -176,7 +171,6 @@ local function StoreEntry(pending, title, body, memory, source)
         restKind = rest.kind,
         level = rest.level,
         mood = pending.opts and pending.opts.mood or nil,
-        weather = pending.opts and pending.opts.weather or nil,
         t = rest.t,
         source = source,
         prompt = pending.fullPrompt or pending.prompt,
@@ -186,7 +180,6 @@ local function StoreEntry(pending, title, body, memory, source)
     j.nextDay = d.endDay + 1
     if memory then j.memory = memory end
     QH.char.state.pendingMood = nil
-    QH.char.state.pendingWeather = nil
     QH:Send("ENTRY_WRITTEN", entry)
     return entry
 end

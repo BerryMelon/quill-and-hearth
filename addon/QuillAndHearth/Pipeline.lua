@@ -567,9 +567,6 @@ local function AppendMoments(out, meta, digest, opts)
     if opts.mood then
         line(("The character's mood tonight: %s. Let it colour the whole entry."):format(opts.mood))
     end
-    if opts.weather then
-        line(("The weather / atmosphere tonight: %s. Weave it naturally into the setting."):format(opts.weather))
-    end
     if digest.level then
         line(("The character is level %d%s."):format(digest.level,
             meta and meta.class and (" (" .. meta.class .. ")") or ""))
@@ -632,7 +629,7 @@ function P.BuildSetupPrompt(profile, meta, memory, previousTitles, opts)
     return table.concat(out, "\n")
 end
 
---- opts (all optional): { mood, weather, length, people, session = true (short prompt for an active chat) }
+--- opts (all optional): { mood, length, people, session = true (short prompt for an active chat) }
 function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
     opts = opts or {}
     local out = {}

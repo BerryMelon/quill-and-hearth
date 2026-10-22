@@ -243,6 +243,23 @@ QH:On("PLAYER_CONTROL_GAINED", function()
     end
 end)
 
+-- Non-combat / system / gathering casts that shouldn't appear under "Abilities used most".
+local IGNORED_CASTS = {
+    ["LOGINEFFECT"] = true, ["Food"] = true, ["Drink"] = true, ["Food & Drink"] = true,
+    ["Refreshment"] = true, ["First Aid"] = true, ["Cooking"] = true, ["Basic Campfire"] = true,
+    ["Campfire"] = true, ["Fishing"] = true, ["Gardening"] = true, ["Herbalism"] = true,
+    ["Herbalism Skill"] = true, ["Herb Gathering"] = true, ["Mining"] = true, ["Mining Skill"] = true,
+    ["Skinning"] = true, ["Attack"] = true, ["Auto Attack"] = true, ["Shoot"] = true, ["Throw"] = true,
+}
+
+local function IsAbilityCast(name)
+    if type(name) ~= "string" or name == "" or IGNORED_CASTS[name] then return false end
+    if name:find("^Opening") or name:find("^Find ") or name:find(" Skill$") then return false end
+    return true
+end
+
+QH.IsAbilityCast = IsAbilityCast -- exposed for tests
+
 QH:On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)
     if unit ~= "player" then return end
     spellID = Safe(spellID)
@@ -255,7 +272,7 @@ QH:On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)
     -- style (a shaman's lightning, a rogue's daggers). The player's own casts are never secret.
     local name = C_Spell and C_Spell.GetSpellName and Safe(C_Spell.GetSpellName(spellID))
     local c = QH.char
-    if name and c then
+    if c and IsAbilityCast(name) then
         c.state.spellCounts = c.state.spellCounts or {}
         c.state.spellCounts[name] = (c.state.spellCounts[name] or 0) + 1
     end
@@ -266,7 +283,9 @@ function QH:TakeAbilitySummary(max)
     local counts = self.char and self.char.state.spellCounts
     if not counts then return nil end
     local list = {}
-    for name, n in pairs(counts) do table.insert(list, { name = name, n = n }) end
+    for name, n in pairs(counts) do
+        if IsAbilityCast(name) then table.insert(list, { name = name, n = n }) end
+    end
     table.sort(list, function(a, b) return a.n > b.n end)
     local out = {}
     for i = 1, math.min(max or 6, #list) do

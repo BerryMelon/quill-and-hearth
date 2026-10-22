@@ -21,7 +21,6 @@ local function PlaceLine(e)
     end
     if e.level then table.insert(parts, ("level %d"):format(e.level)) end
     if e.mood then table.insert(parts, e.mood:lower()) end
-    if e.weather then table.insert(parts, e.weather:lower()) end
     return table.concat(parts, " · ")
 end
 

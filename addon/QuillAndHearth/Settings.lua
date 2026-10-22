@@ -5,9 +5,9 @@ local DEFAULTS = {
     textSize = "medium",   -- small | medium | large
     length = "normal",     -- short | normal | long (AI prompt)
     autoOpen = true,       -- open the journal on the unwritten page after resting / logging back in
-    moodPrompt = true,     -- offer mood and weather choices on the unwritten page
+    moodPrompt = true,     -- offer mood choices on the unwritten page
     ritual = true,         -- /sit and book sounds when the journal opens after a rest
-    ritualEmote = true,    -- also send a context-aware /e emote to chat when resting to write
+    ritualEmote = true,    -- also show a context-aware journal emote in chat when resting to write
 }
 QH.SETTING_DEFAULTS = DEFAULTS
 
@@ -109,12 +109,12 @@ local function BuildPanel()
     Choice(panel, "Entry length (AI)", "length", {
         { value = "short", label = "Short" }, { value = "normal", label = "Normal" }, { value = "long", label = "Long" },
     }, -162)
-    Checkbox(panel, "Ask for mood and weather when I rest", "Offers mood and weather/atmosphere choices on the unwritten page to set the tone of the entry.", "moodPrompt", -190)
+    Checkbox(panel, "Ask how my character feels when I rest", "Offers mood choices on the unwritten page to set the tone of the entry.", "moodPrompt", -190)
 
     Header(panel, "Resting", -236)
     Checkbox(panel, "Open the journal when I rest", "After resting (or logging back in after a rest), the journal opens on the unwritten page.", "autoOpen", -258)
     Checkbox(panel, "Writing ritual (/sit and book sound)", "Your character sits down (/sit) and you hear the book open when resting to write.", "ritual", -286)
-    Checkbox(panel, "Send a /e journal emote in chat when resting", "Sends a context-aware /e emote (campfire, tavern, or mood) when the writing ritual plays. Turn off if you prefer not to emote in crowded places.", "ritualEmote", -314)
+    Checkbox(panel, "Show a journal emote in chat when resting", "Shows a context-aware journal emote (campfire, tavern, or mood) in your chat window when the writing ritual plays.", "ritualEmote", -314)
 
     Header(panel, "Other", -360)
     local minimap = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
