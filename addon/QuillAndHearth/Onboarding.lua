@@ -8,20 +8,28 @@ function QH:GetProfile()
     return self.char and self.char.profile
 end
 
-function QH:SaveProfile(profile)
+function QH:SaveProfile(profile, silent)
     local now = GetServerTime()
     local old = self.char.profile
     profile.createdAt = old and old.createdAt or now
     profile.updatedAt = now
     self.char.profile = profile
-    self:Print(("Your journal now knows you as |cffffffff%s|r, %s."):format(profile.name, profile.class))
+    if self.SetAISessionStarted then self:SetAISessionStarted(false) end
+    if not silent then
+        self:Print(("Your journal now knows you as |cffffffff%s|r, %s."):format(profile.name, profile.class))
+        if self.Bridge and self.Bridge.ShowSessionSetup then
+            self.Bridge:ShowSessionSetup()
+        end
+    end
     self:Send("PROFILE_UPDATED", profile)
 end
 
-function QH:ImportFromTRP3()
+function QH:ImportFromTRP3(silent)
     local data = self.TRP3.Snapshot()
     if not data then
-        self:Print("Couldn't read your Total RP 3 profile. Try again in a moment, or use |cffffd100/quill setup|r.")
+        if not silent then
+            self:Print("Couldn't read your Total RP 3 profile. Try again in a moment, or use |cffffd100/quill setup|r.")
+        end
         return
     end
     local gameName = UnitName("player")
@@ -35,7 +43,7 @@ function QH:ImportFromTRP3()
         class = data.class or gameClass,
         useGameClass = data.class == nil or data.class == gameClass,
         trp3 = data,
-    })
+    }, silent)
     self.char.state.trp3DismissedVersion = nil
 end
 
@@ -103,6 +111,11 @@ end
 local function CheckTRP3Changed()
     local profile = QH:GetProfile()
     if not (profile and profile.source == "trp3" and QH.TRP3.IsReady()) then return end
+    if not (profile.trp3 and profile.trp3.uncut) then
+        -- Upgrade earlier truncated TRP3 snapshots to the full uncut profile automatically.
+        QH:ImportFromTRP3(true)
+        return
+    end
     local current = QH.TRP3.GetVersion()
     local imported = profile.trp3 and profile.trp3.version
     if current and current ~= imported and current ~= QH.char.state.trp3DismissedVersion then

@@ -8,7 +8,7 @@ local _, QH = ...
 local TRP3 = {}
 QH.TRP3 = TRP3
 
-local MAX_ABOUT_TEXT = 2000
+local MAX_ABOUT_TEXT = 20000
 
 -- TRP3's built-in personality trait pairs (characteristics.PS[i].ID). English names from TRP3's enUS locale.
 local PSYCHO_PRESETS = {
@@ -97,13 +97,14 @@ function TRP3.Snapshot()
         birthplace = Str(c.BP),
         residence = Str(c.RE),
         version = TRP3.GetVersion(),
+        uncut = true,
     }
 
     if type(c.MI) == "table" then
         local misc = {}
         for _, m in ipairs(c.MI) do
             local name = Str(m.NA) or MISC_NAMES[m.ID]
-            local value = Str(m.VA, 300)
+            local value = Str(m.VA, 1000)
             if name and value then
                 table.insert(misc, { name = name, value = value })
             end
@@ -152,7 +153,7 @@ function TRP3.Snapshot()
     data.about = about
 
     local ch = player.character or {}
-    data.currently = Str(ch.CU, 500)
+    data.currently = Str(ch.CU, 1500)
 
     return data
 end

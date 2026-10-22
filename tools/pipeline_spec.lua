@@ -503,6 +503,51 @@ do
             assert(entry.body:find(needle, 1, true), "missing " .. needle .. " in:\n" .. entry.body)
         end
     end)
+
+    test("Session-based prompts and uncut TRP3 descriptions", function()
+        local longBio = ("Born in the hills of Alterac, Grok walked the old elemental paths. "):rep(20) .. "\n\nEND_OF_LONG_TRP3_BIO"
+        assert(#longBio > 1200, "bio exceeds old 400-char limit")
+        W.GetProfile = function()
+            return {
+                name = "Grok",
+                class = "Shaman",
+                trp3 = { about = { text = longBio } },
+            }
+        end
+        W.char.events = RichLog()
+        W.char.journal = nil
+        W:SetAISessionStarted(false)
+
+        -- 1. Standalone setup prompt has the full uncut TRP3 bio, rules, and "Ready to write" instruction.
+        local setup = W:GetSetupPrompt()
+        assert(setup:find("END_OF_LONG_TRP3_BIO", 1, true), "full uncut TRP3 bio in setup prompt")
+        assert(setup:find('Ready to write Grok\'s journal.', 1, true), "ready instruction in setup prompt")
+
+        -- 2. Before session is started, pending.prompt defaults to fullPrompt.
+        local pending1 = W:GetPendingWrite()
+        eq(pending1.prompt, pending1.fullPrompt)
+        assert(pending1.fullPrompt:find("END_OF_LONG_TRP3_BIO", 1, true), "fullPrompt includes uncut bio")
+        assert(not pending1.sessionPrompt:find("CHARACTER", 1, true), "sessionPrompt omits repeated CHARACTER block")
+        assert(pending1.sessionPrompt:find("WHAT HAPPENED SINCE THE LAST ENTRY", 1, true), "sessionPrompt has tonight's moments")
+        assert(pending1.sessionPrompt:find("PEOPLE MET BEFORE", 1, true), "sessionPrompt keeps people met before")
+        assert(#pending1.sessionPrompt < #pending1.fullPrompt * 0.55, "sessionPrompt is much shorter than fullPrompt")
+
+        -- 3. Saving an AI entry automatically marks the session as started, and still stores fullPrompt on the entry.
+        local saved = W:SaveWrittenEntry(pending1, "TITLE: Sparks in the Dark\nENTRY:\nThe fire crackled.\nMEMORY: Grok rested.")
+        assert(saved, "entry saved")
+        eq(W:IsAISessionStarted(), true, "session marked started after AI save")
+        eq(saved.prompt, pending1.fullPrompt, "entry keeps fullPrompt for future standalone rewrites")
+
+        -- 4. Next night's pending.prompt now defaults to the short sessionPrompt.
+        table.insert(W.char.events, { seq = 99, t = 9999, type = "rest", kind = "campfire", zone = "Durotar", hour = 21, level = 11 })
+        local pending2 = W:GetPendingWrite()
+        eq(pending2.prompt, pending2.sessionPrompt, "active session uses short sessionPrompt by default")
+
+        -- 5. ShortenPrompt turns any stored entry's full prompt into a short session prompt for rewrites.
+        local shortRewrite = P.ShortenPrompt(saved.prompt, "Grok")
+        assert(not shortRewrite:find("CHARACTER", 1, true))
+        assert(shortRewrite:find("WHAT HAPPENED SINCE THE LAST ENTRY", 1, true))
+    end)
 end
 print(("%d Lua tests passed in total (v0.11)"):format(passed))
 

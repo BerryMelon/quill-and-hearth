@@ -96,14 +96,20 @@ function Bridge.PendingJob(pending)
     return {
         kind = "entry",
         prompt = pending.prompt,
+        fullPrompt = pending.fullPrompt or pending.prompt,
+        sessionPrompt = pending.sessionPrompt or pending.prompt,
         save = function(text) return QH:SaveWrittenEntry(pending, text) end,
     }
 end
 
 function Bridge.RewriteJob(entry)
+    local profile = QH:GetProfile()
+    local name = (profile and profile.name) or (QH.char and QH.char.meta and QH.char.meta.name)
     return {
         kind = "rewrite",
         prompt = entry.prompt,
+        fullPrompt = entry.prompt,
+        sessionPrompt = QH.Pipeline.ShortenPrompt(entry.prompt, name),
         select = entry.id,
         save = function(text) return QH:RewriteEntry(entry.id, text) end,
     }
@@ -202,6 +208,36 @@ local function BuildWriteDialog()
         f.promptBox:HighlightText()
     end)
 
+    -- Session toggle: when continuing the same AI chat thread, only send tonight's moments.
+    -- Checking this box includes the full rules, uncut character sheet, and story so far.
+    f.fullToggle = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    f.fullToggle:SetSize(22, 22)
+    f.fullToggle:SetPoint("TOPLEFT", f.promptScroll, "BOTTOMLEFT", -6, -6)
+    f.fullToggleText = f.fullToggle:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.fullToggleText:SetPoint("LEFT", f.fullToggle, "RIGHT", 2, 0)
+    f.fullToggleText:SetText("New AI chat / reset session (include full character & rules)")
+    f.fullToggle:SetHitRectInsets(0, -f.fullToggleText:GetStringWidth() - 6, 0, 0)
+    f.fullToggle:SetScript("OnClick", function(cb)
+        local job = Bridge.job
+        if not job then return end
+        local useFull = cb:GetChecked() and true or false
+        QH:SetAISessionStarted(not useFull)
+        local text = useFull and (job.fullPrompt or job.prompt) or (job.sessionPrompt or job.prompt)
+        f.promptText = text
+        f.promptBox:SetText(text)
+        f.promptScroll:SetVerticalScroll(0)
+        f.promptBox:SetFocus()
+        f.promptBox:HighlightText()
+    end)
+    f.fullToggle:SetScript("OnEnter", function(cb)
+        GameTooltip:SetOwner(cb, "ANCHOR_TOP")
+        GameTooltip:SetText("AI Chat Session")
+        GameTooltip:AddLine("Unchecked: sends only tonight's new moments (best when pasting into the same ongoing AI chat).", 1, 1, 1, true)
+        GameTooltip:AddLine("Checked: includes the full rules, uncut character sheet, and story so far (use for a brand-new AI chat or if the AI forgot your character).", 0.9, 0.82, 0.6, true)
+        GameTooltip:Show()
+    end)
+    f.fullToggle:SetScript("OnLeave", GameTooltip_Hide)
+
     -- Read-only prompt that stays selected.
     f.promptBox:SetScript("OnTextChanged", function(box, userInput)
         if userInput and box:GetText() ~= f.promptText then
@@ -281,8 +317,15 @@ function Bridge:Show(job)
     self.job = job
     if f.SetTitle then f:SetTitle(texts.title) end
     f.save:SetText(texts.save)
-    f.promptText = job.prompt
-    f.promptBox:SetText(job.prompt)
+
+    local hasSessionModes = job.fullPrompt ~= nil and job.sessionPrompt ~= nil and job.fullPrompt ~= job.sessionPrompt
+    f.fullToggle:SetShown(hasSessionModes)
+    local useFull = not QH:IsAISessionStarted()
+    f.fullToggle:SetChecked(useFull)
+    local activePrompt = hasSessionModes and (useFull and job.fullPrompt or job.sessionPrompt) or job.prompt
+
+    f.promptText = activePrompt
+    f.promptBox:SetText(activePrompt)
     f.replyBox:SetText("")
     f.note:SetText(job.kind == "rewrite" and "Saving replaces this entry's current text." or "Waiting for the reply...")
     f:Show()
@@ -290,3 +333,47 @@ function Bridge:Show(job)
     f.promptBox:SetFocus()
     f.promptBox:HighlightText()
 end
+
+---------------------------------------------------------------------------
+-- Standalone AI Session Setup / Reset dialog
+---------------------------------------------------------------------------
+function Bridge:ShowSessionSetup()
+    if not self.setupDialog then
+        local f = CreateTextDialog("QuillAndHearthSessionDialog", "AI Chat Session Setup", 640, 480)
+        f.instructions:SetText("Copy this setup prompt (|cffffffffCtrl+C|r) into a new ChatGPT, Gemini, or Claude chat. It gives the AI your full, uncut character sheet and rules once, so future prompts only need to send each night's new moments.")
+        f.box:SetScript("OnTextChanged", function(box, userInput)
+            if userInput and box:GetText() ~= f.promptText then
+                box:SetText(f.promptText)
+                box:HighlightText()
+            end
+        end)
+        f.box:SetScript("OnEditFocusGained", function(box) box:HighlightText() end)
+
+        f.primary:SetText("Done (session ready)")
+        f.primary:SetScript("OnClick", function()
+            QH:SetAISessionStarted(true)
+            f:Hide()
+            QH:Print("AI chat session marked as ready. Next time you write, the prompt will only send that night's new moments.")
+        end)
+        f.secondary:SetText("Select all")
+        f.secondary:SetScript("OnClick", function()
+            f.box:SetFocus()
+            f.box:HighlightText()
+        end)
+        self.setupDialog = f
+    end
+
+    local f = self.setupDialog
+    local text = QH:GetSetupPrompt()
+    f.promptText = text
+    f.box:SetText(text)
+    f.note:SetText(("%d characters (full character sheet + rules)"):format(#text))
+    f:Show()
+    f.scroll:SetVerticalScroll(0)
+    f.box:SetFocus()
+    f.box:HighlightText()
+end
+
+QH:RegisterCommand("session", "open the initial/reset AI chat session setup prompt", function()
+    Bridge:ShowSessionSetup()
+end)

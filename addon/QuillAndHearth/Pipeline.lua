@@ -446,9 +446,18 @@ end
 ---------------------------------------------------------------------------
 function P.DescribeCharacter(profile, meta)
     local lines = {}
-    local function add(label, value)
-        value = P.Clean(value, 400)
+    local function add(label, value, maxLen)
+        value = P.Clean(value, maxLen or 600)
         if value then table.insert(lines, label .. ": " .. OneLine(value)) end
+    end
+    local function addBlock(label, value)
+        value = P.Clean(value, 20000)
+        if not value then return end
+        if value:find("\n", 1, true) then
+            table.insert(lines, label .. ":\n" .. value)
+        else
+            table.insert(lines, label .. ": " .. value)
+        end
     end
     local gender = meta and (meta.sex == 3 and "female" or meta.sex == 2 and "male") or nil
     add("Name", profile and profile.name or meta and meta.name)
@@ -469,8 +478,8 @@ function P.DescribeCharacter(profile, meta)
         add("Way with words", t.voice)
     end
     if profile then
-        add("Fears", profile.fear)
-        add("Past", profile.past)
+        addBlock("Fears", profile.fear)
+        addBlock("Past", profile.past)
     end
 
     local d = profile and profile.trp3
@@ -482,20 +491,20 @@ function P.DescribeCharacter(profile, meta)
         add("Build", d.weight)
         add("Birthplace", d.birthplace)
         add("Residence", d.residence)
-        for _, m in ipairs(d.misc or {}) do add(m.name, m.value) end
+        for _, m in ipairs(d.misc or {}) do add(m.name, m.value, 1000) end
         for _, p in ipairs(d.personality or {}) do
             local leftPct = math.floor((p.leftStrength or 10) / (p.max or 20) * 100 + 0.5)
             table.insert(lines, ("Personality: %d%% %s / %d%% %s"):format(leftPct, p.left, 100 - leftPct, p.right))
         end
         local a = d.about
         if a then
-            add("About", a.text)
-            for i, s in ipairs(a.sections or {}) do add("About (part " .. i .. ")", s) end
-            add("Appearance", a.physical)
-            add("Personality notes", a.personality)
-            add("History", a.history)
+            addBlock("About", a.text)
+            for i, s in ipairs(a.sections or {}) do addBlock("About (part " .. i .. ")", s) end
+            addBlock("Appearance", a.physical)
+            addBlock("Personality notes", a.personality)
+            addBlock("History", a.history)
         end
-        add("Currently", d.currently)
+        addBlock("Currently", d.currently)
     end
     return table.concat(lines, "\n")
 end
@@ -532,24 +541,9 @@ ENTRY:
 <the journal entry, paragraphs separated by a blank line>
 MEMORY: <the whole story so far including tonight, third person, under 120 words, for continuity next time>]]
 
---- opts (all optional): { mood = "Weary", length = "short" | "normal" | "long" }
-function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
-    opts = opts or {}
-    local out = {}
+local function AppendMoments(out, meta, digest, opts)
     local function line(s) table.insert(out, s or "") end
-
-    line(RULES:format(P.LENGTH_RULES[opts.length] or P.LENGTH_RULES.normal))
-    line()
-    line("CHARACTER")
-    line(P.DescribeCharacter(profile, meta))
-    line()
-    line("STORY SO FAR")
-    line(memory and memory ~= "" and memory or "This is the first entry in the journal.")
-    if previousTitles and #previousTitles > 0 then
-        line("Previous entry titles (avoid repeating): " .. table.concat(previousTitles, " | "))
-    end
     if opts.people and #opts.people > 0 then
-        line()
         line("PEOPLE MET BEFORE (they appear again tonight; the character knows them, so keep continuity with earlier dealings):")
         for _, p in ipairs(opts.people) do
             local parts = { "- " .. p.name }
@@ -557,8 +551,8 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
             if p.tasks and #p.tasks > 0 then table.insert(parts, "earlier tasks: " .. table.concat(p.tasks, ", ")) end
             line(table.concat(parts, "; "))
         end
+        line()
     end
-    line()
     line("WHAT HAPPENED SINCE THE LAST ENTRY")
     local whereHow = digest.restKind == "campfire" and "by a campfire"
         or (digest.indoors and "indoors somewhere safe" or "somewhere safe")
@@ -612,9 +606,69 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
         line("MINOR ERRANDS (one line at most):")
         for _, c in ipairs(digest.collapsed) do line("- " .. c) end
     end
+end
+
+--- Standalone prompt to prime or reset an AI chat session with the full character sheet and rules.
+function P.BuildSetupPrompt(profile, meta, memory, previousTitles, opts)
+    opts = opts or {}
+    local name = (profile and profile.name) or (meta and meta.name) or "the character"
+    local out = {
+        RULES:format(P.LENGTH_RULES[opts.length] or P.LENGTH_RULES.normal),
+        "",
+        "CHARACTER",
+        P.DescribeCharacter(profile, meta),
+        "",
+        "STORY SO FAR",
+        memory and memory ~= "" and memory or "This is the beginning of the journal.",
+    }
+    if previousTitles and #previousTitles > 0 then
+        table.insert(out, "Previous entry titles (avoid repeating): " .. table.concat(previousTitles, " | "))
+    end
+    table.insert(out, "")
+    table.insert(out, "When I send what happened since the last entry, " .. FORMAT:gsub("^Reply", "reply"))
+    table.insert(out, "")
+    table.insert(out, ('This message sets up our journal session. Do not write a journal entry yet — reply only with: "Ready to write %s\'s journal." and wait for the next night\'s moments.'):format(name))
+    return table.concat(out, "\n")
+end
+
+--- opts (all optional): { mood, weather, length, people, session = true (short prompt for an active chat) }
+function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
+    opts = opts or {}
+    local out = {}
+    local function line(s) table.insert(out, s or "") end
+    local lengthRule = P.LENGTH_RULES[opts.length] or P.LENGTH_RULES.normal
+
+    if opts.session then
+        local name = (profile and profile.name) or (meta and meta.name) or "the character"
+        line(("Write the next journal entry for %s in first person, past tense, using the character sheet and rules from earlier in this chat. (%s No date line.)"):format(name, lengthRule))
+        line()
+    else
+        line(RULES:format(lengthRule))
+        line()
+        line("CHARACTER")
+        line(P.DescribeCharacter(profile, meta))
+        line()
+        line("STORY SO FAR")
+        line(memory and memory ~= "" and memory or "This is the first entry in the journal.")
+        if previousTitles and #previousTitles > 0 then
+            line("Previous entry titles (avoid repeating): " .. table.concat(previousTitles, " | "))
+        end
+        line()
+    end
+    AppendMoments(out, meta, digest, opts)
     line()
     line(FORMAT)
     return table.concat(out, "\n")
+end
+
+--- Turn a stored full prompt into a short session-continuation prompt (for rewriting existing entries).
+function P.ShortenPrompt(fullPrompt, name)
+    if type(fullPrompt) ~= "string" then return fullPrompt end
+    local idx = fullPrompt:find("\nPEOPLE MET BEFORE", 1, true)
+        or fullPrompt:find("\nWHAT HAPPENED SINCE THE LAST ENTRY", 1, true)
+    if not idx then return fullPrompt end
+    local header = ("Write this journal entry for %s in first person, past tense, using the character sheet and rules from earlier in this chat. (No date line.)\n"):format(name or "the character")
+    return header .. fullPrompt:sub(idx)
 end
 
 ---------------------------------------------------------------------------

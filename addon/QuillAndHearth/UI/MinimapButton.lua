@@ -52,6 +52,7 @@ function QH:ShowOptionsMenu(owner)
 
         root:CreateDivider()
         root:CreateButton("Set up character...", function() QH:StartOnboarding(true) end)
+        root:CreateButton("AI chat session setup...", function() QH.Bridge:ShowSessionSetup() end)
         root:CreateButton("Show character profile", function() QH.commands.profile("") end)
         root:CreateButton("Options...", function() QH:OpenSettings() end)
         root:CreateDivider()

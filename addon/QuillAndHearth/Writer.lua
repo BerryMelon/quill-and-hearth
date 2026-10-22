@@ -71,6 +71,28 @@ function QH:SetPendingWeather(weather)
     self.char.state.pendingWeather = weather
 end
 
+function QH:IsAISessionStarted()
+    return self.char and self.char.state and self.char.state.aiSessionStarted == true or false
+end
+
+function QH:SetAISessionStarted(started)
+    if not self.char then return end
+    self.char.state.aiSessionStarted = started and true or nil
+end
+
+local function RecentTitles(entries)
+    local titles = {}
+    for i = math.max(1, #entries - 7), #entries do table.insert(titles, entries[i].title) end
+    return titles
+end
+
+--- Standalone prompt to start or reset an AI chat session with the full character sheet and story so far.
+function QH:GetSetupPrompt()
+    if not self.char then return "" end
+    local titles = RecentTitles(self:GetEntries())
+    return P.BuildSetupPrompt(self:GetProfile(), self.char.meta, self:GetJournal().memory, titles, self:GetWriteOptions())
+end
+
 --- People in tonight's moments whom the character had already met before these nights.
 --- Marks those moments (m.metBefore) and returns a short list for the prompt, or nil.
 local function PeopleMetBefore(people, digest, sittings)
@@ -103,7 +125,7 @@ local function PeopleMetBefore(people, digest, sittings)
     return #list > 0 and list or nil
 end
 
---- The unwritten nights: a digest + prompt for every rest not yet written up, or nil.
+--- The unwritten nights: a digest + prompts (full and session-short) for every rest not yet written up, or nil.
 function QH:GetPendingWrite()
     if not self.char then return nil end
     local sittings = P.FindSittings(self.char.events, self:GetProcessedThrough())
@@ -111,17 +133,28 @@ function QH:GetPendingWrite()
 
     local profile = self:GetProfile()
     local digest = P.BuildDigest(sittings, NextDay(), P.DeriveHooks(profile))
-    local titles = {}
-    local entries = self:GetEntries()
-    for i = math.max(1, #entries - 7), #entries do table.insert(titles, entries[i].title) end
+    local titles = RecentTitles(self:GetEntries())
     local opts = self:GetWriteOptions()
     opts.people = PeopleMetBefore(self.char.people, digest, sittings)
-    local prompt = P.BuildPrompt(profile, self.char.meta, self:GetJournal().memory, digest, titles, opts)
-    return { digest = digest, prompt = prompt, sittings = sittings, opts = opts }
+    local memory = self:GetJournal().memory
+    local fullPrompt = P.BuildPrompt(profile, self.char.meta, memory, digest, titles, opts)
+    local sessionOpts = {}
+    for k, v in pairs(opts) do sessionOpts[k] = v end
+    sessionOpts.session = true
+    local sessionPrompt = P.BuildPrompt(profile, self.char.meta, memory, digest, titles, sessionOpts)
+    local prompt = self:IsAISessionStarted() and sessionPrompt or fullPrompt
+    return {
+        digest = digest,
+        prompt = prompt,
+        fullPrompt = fullPrompt,
+        sessionPrompt = sessionPrompt,
+        sittings = sittings,
+        opts = opts,
+    }
 end
 
 --- Store a finished entry for `pending` (from a pasted AI reply or the template writer).
---- The prompt is kept with the entry so it can be rewritten later (events get pruned).
+--- The full prompt is kept with the entry so it can be rewritten later (events get pruned).
 local function StoreEntry(pending, title, body, memory, source)
     local d = pending.digest
     local rest = d.lastRest
@@ -146,7 +179,7 @@ local function StoreEntry(pending, title, body, memory, source)
         weather = pending.opts and pending.opts.weather or nil,
         t = rest.t,
         source = source,
-        prompt = pending.prompt,
+        prompt = pending.fullPrompt or pending.prompt,
     }
     table.insert(j.entries, entry)
     j.processedThrough = rest.seq
@@ -164,7 +197,9 @@ local BAD_PASTE = "That doesn't look like a journal entry. Paste the AI's whole 
 function QH:SaveWrittenEntry(pending, reply)
     local parsed = P.ParseReply(reply)
     if not parsed then return nil, BAD_PASTE end
-    return StoreEntry(pending, parsed.title, parsed.body, parsed.memory, "paste")
+    local entry, err = StoreEntry(pending, parsed.title, parsed.body, parsed.memory, "paste")
+    if entry then self:SetAISessionStarted(true) end
+    return entry, err
 end
 
 --- Write the entry for `pending` with the in-game template writer (no AI).
@@ -195,6 +230,7 @@ function QH:RewriteEntry(id, reply)
     target.source = "paste"
     target.rewrittenAt = GetServerTime()
     if isNewest and parsed.memory then j.memory = parsed.memory end
+    self:SetAISessionStarted(true)
 
     self:Send("ENTRY_WRITTEN", target)
     return target
