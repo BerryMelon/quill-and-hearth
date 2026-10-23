@@ -375,29 +375,87 @@ function Journal:Build()
     Tooltip(self.secondaryButton, function() return self.secondaryTip and self.secondaryTip[1] or "" end,
         function() return self.secondaryTip and self.secondaryTip[2] end)
 
-    -- Footer: status, export, options
+    -- Book-style chronological page turning (< Earlier / Later >)
+    local function PlayPageTurn()
+        if PlaySound and SOUNDKIT then
+            PlaySound(SOUNDKIT.IG_ABILITY_PAGE_TURN or SOUNDKIT.IG_QUEST_LIST_SELECT)
+        end
+    end
+    self.laterButton = SmallButton(page, "Later >", 78)
+    self.laterButton:SetHeight(24)
+    self.laterButton:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -28, 14)
+    self.laterButton:SetScript("OnClick", function()
+        if self.nextEntryId then
+            PlayPageTurn()
+            self:Select(self.nextEntryId)
+        end
+    end)
+    self.earlierButton = SmallButton(page, "< Earlier", 82)
+    self.earlierButton:SetHeight(24)
+    self.earlierButton:SetPoint("RIGHT", self.laterButton, "LEFT", -6, 0)
+    self.earlierButton:SetScript("OnClick", function()
+        if self.prevEntryId then
+            PlayPageTurn()
+            self:Select(self.prevEntryId)
+        end
+    end)
+    Tooltip(self.earlierButton, function() return self.prevTip and self.prevTip[1] or "Earlier page" end,
+        function() return self.prevTip and self.prevTip[2] or "Already at the first page." end)
+    Tooltip(self.laterButton, function() return self.nextTip and self.nextTip[1] or "Later page" end,
+        function() return self.nextTip and self.nextTip[2] or "Already at the latest page." end)
+
+    -- Footer: status + compact quick actions (+ Note, Rest, Menu)
     self.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     self.status:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 9)
-    self.status:SetPoint("RIGHT", f, "RIGHT", -300, 0)
+    self.status:SetPoint("RIGHT", f, "RIGHT", -260, 0)
     self.status:SetJustifyH("LEFT")
     self.status:SetWordWrap(false)
 
-    self.optionsButton = SmallButton(f, "Options", 84)
-    self.optionsButton:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 4)
-    self.optionsButton:SetScript("OnClick", function() QH:OpenSettings() end)
-    self.exportButton = SmallButton(f, "Export", 84)
-    self.exportButton:SetPoint("RIGHT", self.optionsButton, "LEFT", -4, 0)
-    self.exportButton:SetScript("OnClick", function() QH:ShowExport() end)
-    Tooltip(self.exportButton, "Export journal", "Copy your journal as Markdown, to keep it or turn it into a PDF.")
+    self.menuButton = SmallButton(f, "Menu", 68)
+    self.menuButton:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 4)
+    self.menuButton:SetScript("OnClick", function(btn) QH:ShowOptionsMenu(btn, true) end)
+    Tooltip(self.menuButton, "Menu", "Export journal, character & AI session setup, and options.")
+
+    self.restButton = SmallButton(f, "Rest", 68)
+    self.restButton:SetPoint("RIGHT", self.menuButton, "LEFT", -4, 0)
+    self.restButton:SetScript("OnClick", function() QH:RequestRest() end)
+    Tooltip(self.restButton, "Rest and write", function()
+        if QH:GetRestKind() then
+            return "End the day and open an unwritten page for everything since your last rest."
+        end
+        return "Find an inn, a city, or sit by a campfire first."
+    end)
+
+    self.noteButton = SmallButton(f, "+ Note", 74)
+    self.noteButton:SetPoint("RIGHT", self.restButton, "LEFT", -4, 0)
+    self.noteButton:SetScript("OnClick", function() QH:ShowNoteDialog() end)
+    Tooltip(self.noteButton, "Add a note", "Record a personal thought or moment for your next journal entry.")
 
     QH:Listen("ENTRY_WRITTEN", function()
         if self.frame:IsShown() then self:Refresh(self.selected ~= PENDING and self.selected or true) end
+    end)
+    QH:Listen("NOTE_ADDED", function()
+        if self.frame:IsShown() then self:RefreshStatus() end
+    end)
+    QH:Listen("RESTED", function()
+        if self.frame:IsShown() then self:Refresh(PENDING) end
     end)
     QH:Listen("SETTING_CHANGED", function(key)
         if self.frame:IsShown() and (key == "textSize" or key == "moodPrompt" or key == "length") then
             self:Refresh(self.selected)
         end
     end)
+    for _, ev in ipairs({ "PLAYER_UPDATE_RESTING", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA", "UNIT_AURA", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED" }) do
+        QH:On(ev, function()
+            if self.frame and self.frame:IsShown() then self:RefreshRestButton() end
+        end)
+    end
+end
+
+function Journal:RefreshRestButton()
+    if not self.restButton then return end
+    local canRest = QH:GetRestKind() ~= nil and not (InCombatLockdown and InCombatLockdown())
+    self.restButton:SetEnabled(canRest)
 end
 
 ---------------------------------------------------------------------------
@@ -598,8 +656,29 @@ function Journal:ShowPage(day, title, place, body, opts)
     setup(self.primaryButton, opts.primary, "primary")
     setup(self.secondaryButton, opts.secondary, "secondary")
 
+    local nav = opts.nav
+    self.earlierButton:SetShown(nav ~= nil)
+    self.laterButton:SetShown(nav ~= nil)
+    if nav then
+        self.prevEntryId = nav.prev and nav.prev.id or nil
+        self.nextEntryId = nav.next and nav.next.id or nil
+        self.earlierButton:SetEnabled(self.prevEntryId ~= nil)
+        self.laterButton:SetEnabled(self.nextEntryId ~= nil)
+        self.prevTip = nav.prev and {
+            "Earlier: " .. DayLabel(nav.prev.day, nav.prev.dayEnd),
+            nav.prev.title or "Untitled",
+        } or nil
+        self.nextTip = nav.next and {
+            "Later: " .. DayLabel(nav.next.day, nav.next.dayEnd),
+            nav.next.title or "Untitled",
+        } or nil
+    else
+        self.prevEntryId, self.nextEntryId = nil, nil
+        self.prevTip, self.nextTip = nil, nil
+    end
+
     local bottom = 16
-    if opts.primary or opts.secondary then bottom = 48 end
+    if opts.primary or opts.secondary or nav then bottom = 48 end
     if moodShown then bottom = 78 end
     self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -38, bottom)
     self.scroll:SetPoint("TOPLEFT", self.page, "TOPLEFT", 30, (opts.tools or opts.deleteOnly) and -40 or -22)
@@ -672,6 +751,20 @@ function Journal:ShowPendingPage()
         })
 end
 
+function Journal:GetEntryNeighbors(entryId)
+    local favOnly = self.favFilter and self.favFilter:GetChecked()
+    local list = {}
+    for _, entry in ipairs(QH:GetEntries()) do
+        if Visible(entry, favOnly) then table.insert(list, entry) end
+    end
+    for i, entry in ipairs(list) do
+        if entry.id == entryId then
+            return { prev = list[i - 1], next = list[i + 1] }
+        end
+    end
+    return {}
+end
+
 function Journal:ShowEntryPage(e)
     local notes = {}
     if e.level then table.insert(notes, ("level %d"):format(e.level)) end
@@ -681,6 +774,7 @@ function Journal:ShowEntryPage(e)
     if e.editedAt then table.insert(notes, "edited") end
     local place = PlaceText(e.restKind, e.zone, e.subzone)
     if #notes > 0 then place = place .. "  |cff8a7a6a(" .. table.concat(notes, ", ") .. ")|r" end
+    local nav = self:GetEntryNeighbors(e.id)
 
     if e.unwritten then
         local d = e.digest
@@ -694,6 +788,7 @@ function Journal:ShowEntryPage(e)
             body = body .. ("\n\n|cff5a3a1aWaiting on %s:|r Write %s with AI first — its reply updates the story so far needed to generate this day's prompt."):format(firstLabel, firstLabel)
             self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, body, {
                 deleteOnly = true,
+                nav = nav,
                 primary = { "Go to " .. firstLabel, function() self:Select(firstUnwritten.id) end,
                     { "Write " .. firstLabel .. " first", "Each day builds on the story so far. Write your earlier saved day with AI first, and this day's prompt will unlock." } },
             })
@@ -701,6 +796,7 @@ function Journal:ShowEntryPage(e)
             body = body .. "\n\n|cff5a3a1aSaved for later.|r Click |cff5a3a1aWrite with AI|r whenever you're ready to copy the prompt and paste the AI's reply."
             self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, body, {
                 deleteOnly = true,
+                nav = nav,
                 mood = QH:GetSetting("moodPrompt"),
                 primary = { "Write with AI", function()
                     local job, err = QH.Bridge.UnwrittenEntryJob(e)
@@ -713,6 +809,7 @@ function Journal:ShowEntryPage(e)
 
     self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, e.body, {
         tools = true,
+        nav = nav,
         primary = e.prompt and { "Rewrite with AI", function() QH.Bridge:Show(QH.Bridge.RewriteJob(e)) end,
             { "Rewrite with AI", "Get a new version of this entry from any AI chat, using the prompt it was written from." } } or nil,
     })
@@ -798,6 +895,7 @@ function Journal:RefreshStatus()
         text = "Nothing new since your last rest."
     end
     self.status:SetText(text)
+    self:RefreshRestButton()
 end
 
 ---------------------------------------------------------------------------

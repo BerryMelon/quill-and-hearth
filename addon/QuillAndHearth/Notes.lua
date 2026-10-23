@@ -1,5 +1,5 @@
 -- Quill & Hearth: personal notes. The player writes a line about what their character felt or did;
--- it becomes a KEY moment in the next journal entry (AI prompt and template writer).
+-- it becomes a KEY moment in the next journal entry.
 local _, QH = ...
 
 local NOTE_MAX = 500
@@ -9,6 +9,7 @@ function QH:AddNote(text)
     if text == "" then return false end
     if #text > NOTE_MAX then text = text:sub(1, NOTE_MAX) end
     self:Push("note", { text = text })
+    self:Send("NOTE_ADDED")
     QH:Print(("Noted. It will be part of your next journal entry: |cffffffff%s|r"):format(text))
     return true
 end

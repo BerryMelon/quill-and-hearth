@@ -80,7 +80,7 @@ local function MenuDivider(f, i)
     return d
 end
 
-function QH:ShowOptionsMenu(owner)
+function QH:ShowOptionsMenu(owner, anchorUp)
     menuFrame = menuFrame or BuildMenu()
     if menuFrame:IsShown() and menuFrame.owner == owner then
         menuFrame:Hide()
@@ -169,7 +169,11 @@ function QH:ShowOptionsMenu(owner)
     menuFrame:SetSize(maxW, y + 6)
     menuFrame:ClearAllPoints()
     if owner and owner ~= UIParent then
-        menuFrame:SetPoint("TOPRIGHT", owner, "BOTTOMLEFT", 4, 4)
+        if anchorUp then
+            menuFrame:SetPoint("BOTTOMRIGHT", owner, "TOPRIGHT", 0, 2)
+        else
+            menuFrame:SetPoint("TOPRIGHT", owner, "BOTTOMLEFT", 4, 4)
+        end
     else
         menuFrame:SetPoint("CENTER")
     end
