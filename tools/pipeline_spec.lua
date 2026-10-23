@@ -550,6 +550,66 @@ do
         assert(not shortRewrite:find("CHARACTER", 1, true))
         assert(shortRewrite:find("WHAT HAPPENED SINCE THE LAST ENTRY", 1, true))
     end)
+
+    test("Randomized slice-of-life flavor moments (0-3 on busy nights, 1-4 on quiet nights, context-aware)", function()
+        local busyCounts, quietCounts = {}, {}
+        local sawCombat, sawHearth = false, false
+
+        for i = 1, 60 do
+            -- Busy night (RichLog has 9 moments including multiple KEY moments and abilities)
+            local busyEvents = RichLog()
+            busyEvents[#busyEvents].seq = 100 + i
+            busyEvents[#busyEvents].t = 1900000000 + i * 73
+            local bd = P.BuildDigest(P.FindSittings(busyEvents, 0), i, {})
+            assert(#bd.flavors >= 0 and #bd.flavors <= 3, "busy night should roll 0..3 flavors, got " .. #bd.flavors)
+            busyCounts[#bd.flavors] = true
+            local seenIds = {}
+            for _, f in ipairs(bd.flavors) do
+                assert(not seenIds[f.id], "duplicate flavor id in same night: " .. f.id)
+                seenIds[f.id] = true
+                assert(not f.prompt:find("{"), "unfilled placeholder in flavor prompt: " .. f.prompt)
+                if f.slot == "combat" then
+                    sawCombat = true
+                    assert(
+                        f.prompt:find("Lightning Bolt", 1, true)
+                        or f.prompt:find("Earth Shock", 1, true)
+                        or f.prompt:find("Healing Wave", 1, true),
+                        "combat flavor must use one of the character's actual abilities: " .. f.prompt
+                    )
+                elseif f.slot == "hearth" then
+                    sawHearth = true
+                    assert(f.id:find("^camp_"), "campfire rest should only pick campfire hearth flavors, got " .. f.id)
+                end
+            end
+
+            -- Quiet night (no combat abilities, indoors at an inn)
+            local quietSitting = {
+                {
+                    events = {},
+                    rest = { seq = 200 + i, t = 1950000000 + i * 97, type = "rest", kind = "rested", indoors = true, zone = "Teldrassil", subzone = "Dolanaar" },
+                },
+            }
+            local qd = P.BuildDigest(quietSitting, i, {})
+            assert(#qd.flavors >= 1 and #qd.flavors <= 4, "quiet night should roll 1..4 flavors, got " .. #qd.flavors)
+            quietCounts[#qd.flavors] = true
+            for _, f in ipairs(qd.flavors) do
+                assert(f.slot ~= "combat", "quiet night with no abilities must never roll a combat flavor")
+                if f.slot == "hearth" then
+                    assert(f.id:find("^hearth_"), "indoor rest should pick indoor hearth flavors, got " .. f.id)
+                end
+            end
+            local prompt = P.BuildPrompt(nil, { name = "Eminai" }, "", qd, {})
+            assert(prompt:find("SMALL SLICE-OF-LIFE MOMENTS", 1, true), "quiet night prompt must include flavor section")
+            for _, voice in ipairs({ "Plain", "Formal", "Poetic", "Terse" }) do
+                local w = T.Write(qd, { traits = { voice = voice } })
+                assert(not w.body:find("{"), "unfilled placeholder in template flavor (" .. voice .. "): " .. w.body)
+            end
+        end
+
+        assert(busyCounts[0] and busyCounts[1] and busyCounts[2] and busyCounts[3], "busy nights should cover 0..3 across seeds")
+        assert(quietCounts[1] and quietCounts[2] and quietCounts[3] and quietCounts[4], "quiet nights should cover 1..4 across seeds")
+        assert(sawCombat and sawHearth, "should roll combat and hearth flavors across seeds")
+    end)
 end
 print(("%d Lua tests passed in total (v0.11)"):format(passed))
 

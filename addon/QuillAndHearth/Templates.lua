@@ -248,6 +248,206 @@ B.reflection = {
     Poetic = { "When I think of who I was at the start, it feels like a stranger's story, and yet it's mine.", "The road has carved me into someone new." },
     Terse = { "I've changed. Good.", "Not who I was. Stronger." },
 }
+B.flavor = {
+    hearth_soup = {
+        Plain = { "I can smell a hearty soup while writing this journal; I should go check it out as soon as I'm done." },
+        Formal = { "The aroma of a hearty soup drifts over as I write; I shall inquire after a bowl once this page is finished." },
+        Poetic = { "The rich scent of a simmering soup curls around my table as I write, calling me away from the ink." },
+        Terse = { "Smell hearty soup while writing. Going to get some next." },
+    },
+    hearth_candle = {
+        Plain = { "The candle on my table keeps sputtering and nearly dripping wax onto the page." },
+        Formal = { "My table's tallow candle sputters unevenly, threatening to spot this page with wax." },
+        Poetic = { "A restless candle gutters beside my hand, weeping warm wax near the margin." },
+        Terse = { "Candle's sputtering. Almost dripped wax on the page." },
+    },
+    hearth_bard = {
+        Plain = { "Someone across the room has been tuning an instrument with one stubbornly flat string this whole time." },
+        Formal = { "A musician in the room has spent the evening wrestling with an obstinately flat string." },
+        Poetic = { "Across the room, a minstrel plucks at a single flat string, over and over, like a question without an answer." },
+        Terse = { "Someone's tuning a lute nearby. One string's still flat." },
+    },
+    hearth_patrons = {
+        Plain = { "Two folks at the next table have been arguing in hushed voices over a crumpled map all evening." },
+        Formal = { "At the neighbouring table, two patrons remain locked in a hushed dispute over a worn map." },
+        Poetic = { "Whispers drift from the next table, where two strangers lean over a creased map like conspirators." },
+        Terse = { "Two people at the next table arguing over a map." },
+    },
+    hearth_boots = {
+        Plain = { "My boots are propped near the fire, still caked with mud from {zone}." },
+        Formal = { "My boots rest near the hearth, still bearing the dust and mire of {zone}." },
+        Poetic = { "By the warmth, my boots slowly shed the stubborn mud of {zone}." },
+        Terse = { "Boots drying by the fire. Still muddy from {zone}." },
+    },
+    camp_ember = {
+        Plain = { "A damp branch in the fire just hissed and popped an ember right onto the corner of this page." },
+        Formal = { "A damp bough in the fire popped just now, casting a stray ember onto the corner of my page." },
+        Poetic = { "The fire hissed and tossed a tiny, glowing ember onto the corner of my page — a little scar of ash." },
+        Terse = { "Fire popped an ember onto the page. Brushed it off." },
+    },
+    camp_rustle = {
+        Plain = { "Something rustled in the brush just past the firelight and had me reaching for my weapon, though it was only a critter." },
+        Formal = { "A sudden rustling beyond the firelight caused me to reach for my weapon, though it proved to be harmless wildlife." },
+        Poetic = { "The dark beyond the firelight rustled and made my hand jump to my weapon, only for a small shadow to scamper away." },
+        Terse = { "Noise in the brush by camp. Reached for my weapon. Just a critter." },
+    },
+    camp_tea = {
+        Plain = { "I've got a tin cup simmering on the stones beside the fire while I write." },
+        Formal = { "A modest cup simmers upon the stones beside the fire as I set down these thoughts." },
+        Poetic = { "A dented cup steams quietly on the hearth-stones beside the fire as my pen moves." },
+        Terse = { "Tin cup boiling by the coals while I write." },
+    },
+    camp_stars = {
+        Plain = { "Looking up from the page, the smoke parted and left a remarkably clear view of the stars above {zone}." },
+        Formal = { "Through a break in the woodsmoke, the night sky above {zone} is remarkably clear tonight." },
+        Poetic = { "The woodsmoke parted just now, unveiling a cold, brilliant river of stars above {zone}." },
+        Terse = { "Clear stars above {zone} tonight." },
+    },
+    camp_owl = {
+        Plain = { "A night bird has been calling from the dark around {place} every few minutes while I write." },
+        Formal = { "A night bird has been calling at intervals from the darkness beyond {place}." },
+        Poetic = { "Out in the dark around {place}, a night bird keeps calling, lonely and clear." },
+        Terse = { "Owl calling in the dark near {place}." },
+    },
+    out_watch = {
+        Plain = { "The night watch just walked past with clinking lanterns and gave me a quiet nod." },
+        Formal = { "The night watch passed by moments ago, their lanterns clinking softly as they offered a brief nod." },
+        Poetic = { "Lanterns clinked as the night watch drifted past, leaving a brief nod and a pool of swaying light." },
+        Terse = { "Night watch walked past. Nodded." },
+    },
+    out_vendor = {
+        Plain = { "A vendor packing up nearby offered me the last loaf of bread for a couple of copper." },
+        Formal = { "A merchant closing their stall for the evening offered me their last loaf for a few copper coins." },
+        Poetic = { "A weary vendor folding up their stall sold me the day's last warm loaf for a pair of coppers." },
+        Terse = { "Vendor packing up sold me the last loaf cheap." },
+    },
+    out_breeze = {
+        Plain = { "A cool breeze at {place} keeps trying to turn the pages of this journal for me." },
+        Formal = { "A cool evening breeze at {place} persistently stirs the pages as I write." },
+        Poetic = { "The evening breeze at {place} keeps tugging at the corners of this page, impatient for me to finish." },
+        Terse = { "Wind keeps flipping the page." },
+    },
+    combat_miss = {
+        Plain = { "At one point in {zone}, my {ability} missed and the beast charged right at me — I had to dodge aside and steady myself to try again." },
+        Formal = { "During an engagement in {zone}, my {ability} went wide as the creature charged; I was forced to evade its lunge and regain my focus." },
+        Poetic = { "Once in {zone}, my {ability} went astray and the beast lunged into the gap — I barely twisted clear before gathering myself again." },
+        Terse = { "{ability} missed in {zone}. Foe charged. Dodged and reset." },
+    },
+    combat_footing = {
+        Plain = { "My footing slipped on loose dirt during a fight in {zone}, and I took a glancing hit before turning things around with {ability}." },
+        Formal = { "Loose ground betrayed my footing during a skirmish in {zone}, costing me a glancing blow before I answered with {ability}." },
+        Poetic = { "The earth gave way beneath my heel in {zone}; I took a bruising graze before answering with {ability}." },
+        Terse = { "Slipped mid-fight in {zone}. Took a hit. Answered with {ability}." },
+    },
+    combat_ambush = {
+        Plain = { "Something lunged out of the brush in {zone} when my guard was down, forcing a messy, point-blank {ability}." },
+        Formal = { "An ambush from the undergrowth in {zone} caught me off guard and required an immediate {ability} at close quarters." },
+        Poetic = { "Teeth and shadow burst from the brush in {zone} while my thoughts were elsewhere; only an instinctive {ability} kept me whole." },
+        Terse = { "Ambushed in {zone}. Point-blank {ability} saved me." },
+    },
+    combat_exhaust = {
+        Plain = { "After leaning on {ability} so many times in {zone}, my arms were aching by the last fight." },
+        Formal = { "Repeated use of {ability} throughout {zone} left me noticeably fatigued by the final engagement." },
+        Poetic = { "Calling upon {ability} again and again in {zone} left a deep, hollow ache in my bones by nightfall." },
+        Terse = { "Used {ability} all day in {zone}. Worn out." },
+    },
+    combat_narrow = {
+        Plain = { "One fight in {zone} went closer than I'd like to admit — a timely {ability} ended it just as my breath was giving out." },
+        Formal = { "One encounter in {zone} proved narrower than expected; only a well-timed {ability} decided it in my favour." },
+        Poetic = { "One battle in {zone} balanced on a knife's edge until a final, desperate {ability} tipped the scales." },
+        Terse = { "Close fight in {zone}. {ability} finished it just in time." },
+    },
+    combat_gear = {
+        Plain = { "Even with {ability}, a hard blow during a scrap in {zone} left a fresh dent in my gear that I had to patch up afterward." },
+        Formal = { "Despite relying upon {ability}, a heavy strike in {zone} left my equipment damaged, requiring repairs before I could press on." },
+        Poetic = { "Even with {ability} at my call, a fierce blow in {zone} left its mark upon my gear — another scar to mend by firelight." },
+        Terse = { "Took a hard hit in {zone} before {ability} ended it. Had to patch my gear." },
+    },
+    town_drunk = {
+        Plain = { "While heading back toward {town}, I crossed paths with a drunken local who asked me for coins; I ignored them and kept walking." },
+        Formal = { "Upon returning toward {town}, an inebriated local accosted me for coin; I declined to engage and continued on my way." },
+        Poetic = { "On the road back to {town}, a drunken soul stumbled into my path begging for coin; I left them to their cups and walked on." },
+        Terse = { "Drunk near {town} asked for coin. Ignored them." },
+    },
+    town_peddler = {
+        Plain = { "Near {town}, a fast-talking peddler tried to sell me a 'lucky charm' for an absurd price. I passed." },
+        Formal = { "Near {town}, an enterprising peddler attempted to sell me a dubious talisman at an exorbitant sum." },
+        Poetic = { "By {town}, a silver-tongued peddler offered me painted luck for real coin; I kept my purse closed." },
+        Terse = { "Peddler near {town} pushing fake charms. Kept walking." },
+    },
+    town_guards = {
+        Plain = { "Guards along the road near {town} stopped me briefly to ask if I'd seen any trouble out in {zone}." },
+        Formal = { "Sentries near {town} halted me briefly to inquire about conditions along the roads of {zone}." },
+        Poetic = { "Watchmen near {town} stopped me to ask what news the roads of {zone} carried today." },
+        Terse = { "Guards near {town} asked about the roads in {zone}." },
+    },
+    town_lost = {
+        Plain = { "A confused traveler near {town} stopped me to ask for directions through {zone}; I pointed them the right way." },
+        Formal = { "Near {town}, a wayfarer sought directions through {zone}, which I provided as best I could." },
+        Poetic = { "A lost traveler near {town} asked me the way through {zone}; I pointed them down the safer road." },
+        Terse = { "Lost traveler near {town}. Pointed them the right way." },
+    },
+    town_courier = {
+        Plain = { "A mud-splattered courier on a lathered mount nearly ran me down on the road into {town}." },
+        Formal = { "A haste-driven courier on a lathered mount nearly collided with me on the approach to {town}." },
+        Poetic = { "Hooves thundered past on the road to {town} as a mud-streaked rider nearly swept me into the ditch." },
+        Terse = { "Courier on a fast mount almost ran me over near {town}." },
+    },
+    town_children = {
+        Plain = { "Passing near {town}, a few local kids stopped their game to stare at my travel-worn gear." },
+        Formal = { "As I passed near {town}, several local children paused to stare curiously at my travel-stained equipment." },
+        Poetic = { "Near {town}, a handful of children watched me pass with wide, curious eyes." },
+        Terse = { "Kids near {town} stared at my dusty gear as I passed." },
+    },
+    road_wind = {
+        Plain = { "A sudden gust of wind in {zone} blew my hat right off, and I had to chase it down and pick it back up." },
+        Formal = { "A sharp gust of wind in {zone} carried off my headgear, obliging me to pause and retrieve it." },
+        Poetic = { "A mischievous gust in {zone} snatched at my hat and sent me chasing it down the dusty path." },
+        Terse = { "Wind blew my hat off in {zone}. Had to pick it back up." },
+    },
+    road_strap = {
+        Plain = { "A strap on my pack snapped halfway through {zone}, spilling my things into the dirt until I knotted it back together." },
+        Formal = { "A strap upon my pack gave way in {zone}, forcing me to halt and repair it by the roadside." },
+        Poetic = { "Halfway through {zone}, a worn pack-strap finally surrendered, scattering my gear across the dust until I tied it fast." },
+        Terse = { "Pack strap snapped in {zone}. Knotted it back together." },
+    },
+    road_stream = {
+        Plain = { "I stopped by a cold stream in {zone} to wash the road dust from my face and refill my waterskin." },
+        Formal = { "I paused beside a clear stream in {zone} to wash the dust from my face and replenish my water." },
+        Poetic = { "A cold stream in {zone} let me wash the road from my face and fill my waterskin with clear water." },
+        Terse = { "Stopped at a stream in {zone}. Washed up, refilled water." },
+    },
+    road_pebble = {
+        Plain = { "I walked a good mile through {zone} with a sharp pebble in my boot before finally sitting on a rock to shake it out." },
+        Formal = { "A persistent stone in my boot plagued my march through {zone} until I halted to remove it." },
+        Poetic = { "A single stubborn pebble in my boot turned a mile of {zone} into a quiet penance before I finally shook it free." },
+        Terse = { "Pebble in my boot in {zone}. Stopped and shook it out." },
+    },
+    road_shower = {
+        Plain = { "A brief, unexpected rain shower in {zone} soaked my shoulders before the sky cleared up again." },
+        Formal = { "A sudden passing shower in {zone} drenched my cloak before the clouds parted once more." },
+        Poetic = { "A sudden curtain of rain swept across {zone}, dampening my shoulders before vanishing as quickly as it came." },
+        Terse = { "Brief rain in {zone}. Soaked my cloak, then cleared." },
+    },
+    road_trinket = {
+        Plain = { "Beside the path in {zone}, I spotted a strangely carved little stone half-buried in the dirt and pocketed it." },
+        Formal = { "Along the path in {zone}, I noticed a curiously carved stone half-buried in the earth and kept it." },
+        Poetic = { "Half-hidden in the dust of {zone}, a small carved stone caught my eye; it sits in my pocket now." },
+        Terse = { "Found a carved stone on the path in {zone}. Kept it." },
+    },
+    road_shortcut = {
+        Plain = { "What looked like a shortcut in {zone} turned into a steep scramble through tangled brambles." },
+        Formal = { "An apparent shortcut in {zone} proved ill-advised, leading me through a steep thicket of brambles." },
+        Poetic = { "A promising side-path in {zone} betrayed me into a steep tangle of thorns and loose stone." },
+        Terse = { "Bad shortcut in {zone}. Ended up in brambles." },
+    },
+    road_wildlife = {
+        Plain = { "A startled critter bolted across the path right in front of me in {zone} and nearly gave me a heart attack." },
+        Formal = { "A startled creature bolted across my path in {zone}, briefly catching me off guard in the quiet." },
+        Poetic = { "Out of the hush of {zone}, a startled creature bolted across my boots and set my heart racing." },
+        Terse = { "Critter bolted across the path in {zone}. Startled me." },
+    },
+}
 -- Closings by the mood chosen when resting (take priority over temperament).
 B.moodClose = {
     Weary = { "I'm so tired. Sleep, now.", "Every bone aches. Tomorrow can wait." },
@@ -454,6 +654,24 @@ function T.Write(digest, profile, opts)
         table.insert(paragraphs, say(B.quiet))
     end
 
+    -- Randomized slice-of-life moments (road / combat / town in the body; hearthside at the end).
+    local roadFlavors, hearthFlavors = {}, {}
+    for _, f in ipairs(digest.flavors or {}) do
+        local bank = B.flavor[f.id]
+        if bank then
+            local variants = bank[voice] or bank.Plain
+            local line = Fill(variants[1], f.vars or {})
+            if f.slot == "hearth" then
+                table.insert(hearthFlavors, line)
+            else
+                table.insert(roadFlavors, line)
+            end
+        end
+    end
+    if #roadFlavors > 0 then
+        table.insert(paragraphs, table.concat(roadFlavors, " "))
+    end
+
     -- The player's own notes, in their words.
     for _, m in ipairs(notes) do
         table.insert(paragraphs, say(B.noteIntro) .. (m.note or ""))
@@ -465,9 +683,13 @@ function T.Write(digest, profile, opts)
         table.insert(paragraphs, say(B.reflection))
     end
 
-    -- Closing: the chosen mood first, otherwise the character's temperament.
+    -- Closing: hearthside moment (if any) + the chosen mood or temperament closing.
     local closings = (opts.mood and B.moodClose[opts.mood]) or B.close[temperament] or B.close.default
-    table.insert(paragraphs, closings[pick(#closings)])
+    local closeLine = closings[pick(#closings)]
+    if #hearthFlavors > 0 then
+        closeLine = table.concat(hearthFlavors, " ") .. " " .. closeLine
+    end
+    table.insert(paragraphs, closeLine)
 
     -- Title
     local voyage
