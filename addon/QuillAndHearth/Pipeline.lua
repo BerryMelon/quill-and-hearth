@@ -434,55 +434,25 @@ end
 
 ---------------------------------------------------------------------------
 -- Randomized slice-of-life flavor moments (seeded per rest, hidden from UI)
+--   * Fixed IDs are used by Templates.lua ("Write it plainly")
+--   * Generalized creative cues (`prompt`) are sent to the AI so it invents original moments
 ---------------------------------------------------------------------------
 local FLAVOR_POOLS = {
-    hearth_inn = {
-        { id = "hearth_soup",   prompt = "While writing this journal at {place}, the smell of a hearty soup drifted up from the kitchen — tempting them to go check it out once the ink dries." },
-        { id = "hearth_candle", prompt = "The tallow candle on the table at {place} keeps sputtering and threatening to drip wax onto the journal page." },
-        { id = "hearth_bard",   prompt = "Someone in the common room at {place} has been tuning an instrument with one stubbornly flat string while they write." },
-        { id = "hearth_patrons", prompt = "Two patrons at a nearby table in {place} are arguing in hushed voices over a crumpled map while the character writes." },
-        { id = "hearth_boots",  prompt = "Their boots are propped near the hearth at {place}, still drying out from the mud and dust of {zone}." },
-    },
-    hearth_campfire = {
-        { id = "camp_ember",  prompt = "While writing by the campfire near {place}, a damp branch hissed and popped a stray ember onto the corner of the page." },
-        { id = "camp_rustle", prompt = "While sitting by the fire near {place}, a sudden rustle in the brush beyond the firelight made them reach for their weapon before a harmless critter darted past." },
-        { id = "camp_tea",    prompt = "A dented tin cup of travel rations or bitter herb tea is simmering on the stones beside the campfire while they write." },
-        { id = "camp_stars",  prompt = "Looking up from the page by the campfire, the smoke parted to reveal a remarkably clear stretch of night sky above {zone}." },
-        { id = "camp_owl",    prompt = "A night bird has been calling from the dark around {place} every few minutes while they write." },
-    },
-    hearth_outdoors = {
-        { id = "hearth_soup", prompt = "While writing this journal at {place}, the smell of a hearty soup drifted over from a nearby hearth — tempting them to go check it out." },
-        { id = "out_watch",   prompt = "While writing at {place}, the night watch passed by with clinking lanterns and gave a quiet nod." },
-        { id = "out_vendor",  prompt = "Near {place}, a late street vendor was packing up their cart for the night and offered the last warm loaf for a couple of copper." },
-        { id = "out_breeze",  prompt = "A cool breeze at {place} keeps riffling the corners of the journal page as they write." },
-        { id = "hearth_boots", prompt = "Their boots are still caked with the road dust of {zone} as they sit at {place} to write." },
-    },
-    combat = {
-        { id = "combat_miss",    prompt = "During a fight in {zone}, their {ability} missed the mark as the foe charged straight at them — they had to dodge aside and focus for another attempt." },
-        { id = "combat_footing", prompt = "Their footing slipped on loose ground mid-fight in {zone}, forcing them to take a glancing blow before recovering with {ability}." },
-        { id = "combat_ambush",  prompt = "A creature lunged out of the brush in {zone} while their guard was down, forcing a hasty, point-blank {ability}." },
-        { id = "combat_exhaust", prompt = "After relying on {ability} so many times in {zone}, their arms and focus felt heavy by the final skirmish." },
-        { id = "combat_narrow",  prompt = "A scrap in {zone} went closer than expected — a well-timed {ability} ended it just as their breath was giving out." },
-        { id = "combat_gear",    prompt = "Even with {ability}, a sharp blow during a skirmish in {zone} left a fresh nick or tear in their gear that needed tending afterward." },
-    },
-    town = {
-        { id = "town_drunk",    prompt = "While heading back toward {town}, a drunken local stumbled up and asked for spare coin (react in the character's temperament — e.g. ignoring them, brushing past, or tossing a coin)." },
-        { id = "town_peddler",  prompt = "Near {town}, a fast-talking peddler tried to sell them a dubious 'lucky charm' at an absurd price." },
-        { id = "town_guards",   prompt = "Along the road near {town}, local guards stopped them briefly to ask if they had seen any trouble out in {zone}." },
-        { id = "town_lost",     prompt = "A confused traveler near {town} stopped them to ask for directions through {zone}." },
-        { id = "town_courier",  prompt = "A mud-splattered rider on a lathered mount nearly barreled into them on the road near {town}." },
-        { id = "town_children", prompt = "Passing near {town}, a few local youngsters stared curiously at their travel-worn gear." },
-    },
-    road = {
-        { id = "road_wind",     prompt = "A sudden gust of wind in {zone} blew their hat or hood back (or sent dust into their eyes), forcing them to stop and retrieve it." },
-        { id = "road_strap",    prompt = "A strap on their pack snapped halfway through {zone}, spilling supplies into the dirt until they knotted it back together." },
-        { id = "road_stream",   prompt = "They paused by a cold stream in {zone} to wash the road dust from their face and refill their waterskin." },
-        { id = "road_pebble",   prompt = "They walked a long stretch of {zone} with a sharp pebble in their boot before finally sitting on a stone to shake it out." },
-        { id = "road_shower",   prompt = "A brief, unexpected passing rain in {zone} dampened their shoulders before the sky cleared again." },
-        { id = "road_trinket",  prompt = "Beside the path in {zone}, they spotted a small curiosity — an old tarnished coin or strangely carved stone — and turned it over in their hand." },
-        { id = "road_shortcut", prompt = "What looked like a shortcut in {zone} turned into a steep scramble through tangled brush and brambles." },
-        { id = "road_wildlife", prompt = "A startled wild creature bolted across the path right in front of them in {zone}, giving them a momentary jolt in the quiet." },
-    },
+    hearth_inn = { "hearth_soup", "hearth_candle", "hearth_bard", "hearth_patrons", "hearth_boots" },
+    hearth_campfire = { "camp_ember", "camp_rustle", "camp_tea", "camp_stars", "camp_owl" },
+    hearth_outdoors = { "hearth_soup", "out_watch", "out_vendor", "out_breeze", "hearth_boots" },
+    combat = { "combat_miss", "combat_footing", "combat_ambush", "combat_exhaust", "combat_narrow", "combat_gear" },
+    town = { "town_drunk", "town_peddler", "town_guards", "town_lost", "town_courier", "town_children" },
+    road = { "road_wind", "road_strap", "road_stream", "road_pebble", "road_shower", "road_trinket", "road_shortcut", "road_wildlife" },
+}
+
+local AI_FLAVOR_CUES = {
+    hearth_inn = "While writing tonight indoors at {place}: invent a small sensory detail or distraction in the room (e.g. the smell of a hearty soup or roast from the kitchen, a sputtering candle, background music or hushed tavern chatter, drying muddy boots by the hearth).",
+    hearth_campfire = "While writing tonight by the campfire near {place}: invent a small sensory detail at camp (e.g. a popping ember, a harmless rustle in the brush beyond the firelight, rations simmering on the coals, the night sky over {zone}).",
+    hearth_outdoors = "While sitting to write at {place}: invent a small passing detail around them (e.g. the smell of food from a nearby hearth, passing night watch lanterns, a late vendor packing up, or an evening breeze riffling the page).",
+    combat = "During a skirmish in {zone} using {ability}: invent a brief, harmless combat mishap or close call (e.g. a missed or mistimed {ability} as the foe charged, a narrow dodge, slipping on the terrain, or a dent in their gear) before they recovered.",
+    town = "While passing near {town}: invent a brief, inconsequential encounter with a local or passerby (e.g. a tipsy local asking for spare coin, a peddler, a guard, a hurried rider, or a traveler asking directions) and how the character reacted.",
+    road = "Along the road in {zone}: invent a small, mundane travel or weather mishap (e.g. wind blowing their hat or cloak back, a snapped pack strap, a pebble in their boot, washing dust off in a stream, or a startled critter bolting across the path).",
 }
 
 local function FillFlavor(template, vars)
@@ -523,21 +493,21 @@ function P.RollFlavors(digest)
     local zone = rest.zone or "the road"
     local place = rest.subzone or rest.zone or "camp"
     local town = (digest.restKind ~= "campfire" and place) or ("a settlement in " .. zone)
-    local hearthPool = (digest.restKind == "campfire" and FLAVOR_POOLS.hearth_campfire)
-        or (digest.indoors and FLAVOR_POOLS.hearth_inn)
-        or FLAVOR_POOLS.hearth_outdoors
+    local hearthKey = (digest.restKind == "campfire" and "hearth_campfire")
+        or (digest.indoors and "hearth_inn")
+        or "hearth_outdoors"
 
     -- Build candidate slots so multiple rolled flavors come from different parts of the day.
     local slots = {
-        { slot = "road",   pool = FLAVOR_POOLS.road },
-        { slot = "town",   pool = FLAVOR_POOLS.town },
-        { slot = "hearth", pool = hearthPool },
+        { slot = "road",   pool = FLAVOR_POOLS.road,       cue = AI_FLAVOR_CUES.road },
+        { slot = "town",   pool = FLAVOR_POOLS.town,       cue = AI_FLAVOR_CUES.town },
+        { slot = "hearth", pool = FLAVOR_POOLS[hearthKey], cue = AI_FLAVOR_CUES[hearthKey] },
     }
     if #abilityNames > 0 then
-        table.insert(slots, 2, { slot = "combat", pool = FLAVOR_POOLS.combat })
+        table.insert(slots, 2, { slot = "combat", pool = FLAVOR_POOLS.combat, cue = AI_FLAVOR_CUES.combat })
     end
     -- Extra road slot if a quiet night rolls 4 flavors without combat abilities.
-    table.insert(slots, { slot = "road", pool = FLAVOR_POOLS.road })
+    table.insert(slots, { slot = "road", pool = FLAVOR_POOLS.road, cue = AI_FLAVOR_CUES.road })
 
     -- Shuffle the primary slots so which categories appear first varies each rest.
     local primaryCount = #abilityNames > 0 and 4 or 3
@@ -550,18 +520,18 @@ function P.RollFlavors(digest)
     for _, s in ipairs(slots) do
         if #picked >= count then break end
         local candidates = {}
-        for _, item in ipairs(s.pool) do
-            if not usedIds[item.id] then table.insert(candidates, item) end
+        for _, id in ipairs(s.pool) do
+            if not usedIds[id] then table.insert(candidates, id) end
         end
         if #candidates > 0 then
-            local choice = candidates[rng(#candidates)]
-            usedIds[choice.id] = true
+            local id = candidates[rng(#candidates)]
+            usedIds[id] = true
             local ability = #abilityNames > 0 and abilityNames[rng(#abilityNames)] or nil
             local vars = { zone = zone, place = place, town = town, ability = ability }
             table.insert(picked, {
-                id = choice.id,
+                id = id,
                 slot = s.slot,
-                prompt = FillFlavor(choice.prompt, vars),
+                prompt = FillFlavor(s.cue, vars),
                 vars = vars,
             })
         end
@@ -746,7 +716,12 @@ local function AppendMoments(out, meta, digest, opts)
     end
     if digest.flavors and #digest.flavors > 0 then
         line()
-        line("SMALL SLICE-OF-LIFE MOMENTS (weave these naturally into the entry for variety; keep the character's reaction true to their voice and personality, and never let them overshadow key events):")
+        line(("SMALL SLICE-OF-LIFE MOMENTS (be creative: invent %d brief, original slice-of-life %s following the cues below and weave %s naturally into the entry; keep %s lore-fitting, harmless to the story, true to the character's voice, and different from earlier entries):"):format(
+            #digest.flavors,
+            #digest.flavors == 1 and "moment" or "moments",
+            #digest.flavors == 1 and "it" or "them",
+            #digest.flavors == 1 and "it" or "them"
+        ))
         for _, f in ipairs(digest.flavors) do line("- " .. f.prompt) end
     end
 end
