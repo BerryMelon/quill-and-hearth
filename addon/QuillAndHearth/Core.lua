@@ -43,8 +43,9 @@ local messageHandlers = {}
 
 function QH:On(event, fn)
     if not eventHandlers[event] then
+        local ok = pcall(frame.RegisterEvent, frame, event)
+        if not ok then return end
         eventHandlers[event] = {}
-        frame:RegisterEvent(event)
     end
     table.insert(eventHandlers[event], fn)
 end

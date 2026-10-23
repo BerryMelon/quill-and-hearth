@@ -99,6 +99,85 @@ QH:RegisterCommand("clear", "debug: delete all recorded events for this characte
     StaticPopup_Show("QUILLANDHEARTH_CLEAR")
 end)
 
+local SIM_SCENARIOS = {
+    {
+        questID = 90001,
+        title = "Patrol the Old Road",
+        giver = "Captain Grayson",
+        text = "Bandits have been bold along the milestones since the rains began. Walk the road before dusk and see the way cleared.",
+        rewardText = "The road is quieter already. Take this and get yourself something warm by the fire.",
+        foe = "Garrick the Cutthroat",
+        foeKind = "rare",
+    },
+    {
+        questID = 90002,
+        title = "Supplies for the Watchtower",
+        giver = "Quartermaster Lewis",
+        text = "The north watch has been rationed to hardtack and rain-water. Carry this crate up the ridge before nightfall.",
+        rewardText = "You made good time up that mud slope. The watch will sleep better tonight.",
+        foe = "Ridgetop Stalker",
+        foeKind = "elite",
+    },
+    {
+        questID = 90003,
+        title = "Whispers in the Cellar",
+        giver = "Innkeeper Farley",
+        text = "Something scratched through the old stonework beneath the taproom last night. Take a lantern and see what got in.",
+        rewardText = "So that was what kept the hounds barking. First mug tonight is on the house.",
+        foe = "Broodmother Skitter",
+        foeKind = "rare",
+    },
+    {
+        questID = 90004,
+        title = "Lost Courier's Satchel",
+        giver = "Marshal Dughan",
+        text = "Our rider's mare came back without him from the eastern ford. Find the satchel before the river takes it.",
+        rewardText = "Seals unbroken, thank the Light. You've saved us a week of blind marching.",
+        foe = "Mirescale Snapper",
+        foeKind = "elite",
+    },
+}
+
+QH:RegisterCommand("sim", "debug: simulate a day of moments + rest and open the journal", function()
+    local c = QH.char
+    if not c then return end
+    c.state.simIndex = ((c.state.simIndex or 0) % #SIM_SCENARIOS) + 1
+    local sc = SIM_SCENARIOS[c.state.simIndex]
+    local level = (UnitLevel and QH.Safe(UnitLevel("player"))) or 1
+
+    QH:MeetPerson(sc.giver, sc.title)
+    QH:Push("quest_accept", {
+        questID = sc.questID,
+        title = sc.title,
+        giver = sc.giver,
+        text = sc.text,
+        questLevel = level,
+    })
+    QH:Push("foe", {
+        foe = sc.foe,
+        kind = sc.foeKind,
+        foeLevel = level + 1,
+    })
+    QH:Push("quest_done", {
+        questID = sc.questID,
+        title = sc.title,
+        giver = sc.giver,
+        rewardText = sc.rewardText,
+        questLevel = level,
+    })
+
+    local rest = QH:Push("rest", {
+        kind = "inn",
+        how = "sim",
+        abilities = QH.TakeAbilitySummary and QH:TakeAbilitySummary() or { "Strike (6)", "Guard (2)" },
+        timeOfDay = QH.GetTimeOfDay and QH:GetTimeOfDay() or "night",
+        indoors = true,
+    })
+    QH:Print(('Simulated "%s" (with %s) and rested. Opening journal...'):format(sc.title, sc.giver))
+    QH:Send("RESTED", rest)
+    if QH.OpenJournal then QH:OpenJournal() end
+end)
+
 QH:Listen("READY", function()
     local c = QH.char
     QH:Print(("v%s loaded. %d moments recorded. Type |cffffd100/quill|r for commands."):format(QH.version, #c.events))

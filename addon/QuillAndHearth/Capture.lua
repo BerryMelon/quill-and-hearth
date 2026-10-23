@@ -354,7 +354,7 @@ function QH:MarkFirst(kind)
 end
 
 -- G3: new spells learned (skip Rank > 1 upgrades so rank II/III/IV doesn't clutter the journal).
-QH:On("LEARNED_SPELL_IN_TAB", function(_, spellID)
+local function OnSpellLearned(_, spellID)
     spellID = Safe(spellID)
     if type(spellID) ~= "number" or not QH.char then return end
     local name = C_Spell and C_Spell.GetSpellName and Safe(C_Spell.GetSpellName(spellID))
@@ -368,7 +368,9 @@ QH:On("LEARNED_SPELL_IN_TAB", function(_, spellID)
     if s.learnedSpells[name] then return end
     s.learnedSpells[name] = true
     QH:Push("spell_learned", { spell = name, spellID = spellID })
-end)
+end
+QH:On("LEARNED_SPELL_IN_TAB", OnSpellLearned)
+QH:On("LEARNED_SPELL_IN_SKILL_LINE", OnSpellLearned)
 
 ---------------------------------------------------------------------------
 -- Coin milestones & heavy expenses (G5)
