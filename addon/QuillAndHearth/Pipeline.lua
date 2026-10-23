@@ -428,100 +428,10 @@ function P.BuildDigest(sittings, startDay, hooks)
         reflections = reflectionList,
         isEmpty = #orderedThreads == 0 and #collapsed == 0 and #journey == 0,
     }
-    digest.flavors = P.RollFlavors(digest)
     return digest
 end
 
----------------------------------------------------------------------------
--- Randomized slice-of-life flavor cues for the AI prompt (seeded per rest, hidden from UI)
----------------------------------------------------------------------------
-local AI_FLAVOR_CUES = {
-    hearth_inn = "While writing tonight indoors at {place}: invent a small sensory detail or distraction in the room (e.g. the smell of a hearty soup or roast from the kitchen, a sputtering candle, background music or hushed tavern chatter, drying muddy boots by the hearth).",
-    hearth_campfire = "While writing tonight by the campfire near {place}: invent a small sensory detail at camp (e.g. a popping ember, a harmless rustle in the brush beyond the firelight, rations simmering on the coals, the night sky over {zone}).",
-    hearth_outdoors = "While sitting to write at {place}: invent a small passing detail around them (e.g. the smell of food from a nearby hearth, passing night watch lanterns, a late vendor packing up, or an evening breeze riffling the page).",
-    combat = "During a skirmish in {zone} using {ability}: invent a brief, harmless combat mishap or close call (e.g. a missed or mistimed {ability} as the foe charged, a narrow dodge, slipping on the terrain, or a dent in their gear) before they recovered.",
-    town = "While passing near {town}: invent a brief, inconsequential encounter with a local or passerby (e.g. a tipsy local asking for spare coin, a peddler, a guard, a hurried rider, or a traveler asking directions) and how the character reacted.",
-    road = "Along the road in {zone}: invent a small, mundane travel or weather mishap (e.g. wind blowing their hat or cloak back, a snapped pack strap, a pebble in their boot, or a sudden passing shower).",
-    road_nature = "Out in {zone}: invent a small moment of roadside observation or pause (e.g. washing road dust off in a cold stream, spotting a curious small object beside the path, or a startled critter bolting across the trail).",
-}
-
-local function FillFlavor(template, vars)
-    return (template:gsub("{(%w+)}", function(k) return vars[k] or "" end))
-end
-
---- Roll context-aware slice-of-life cues for a digest:
----   * busy night (3+ KEY moments or 5+ total moments): 0 to 3 cues
----   * quiet night: 1 to 4 cues
-function P.RollFlavors(digest)
-    local rest = digest and digest.lastRest
-    if not rest then return {} end
-
-    local seed = ((rest.seq or 1) * 1103515245 + (rest.t or 1) * 7919 + (digest.startDay or 1) * 31337) % 2147483647
-    if seed <= 0 then seed = seed + 2147483646 end
-    local function rng(n)
-        seed = (seed * 16807) % 2147483647
-        return (seed % n) + 1
-    end
-
-    local keyCount, totalCount = 0, 0
-    for _, thread in ipairs(digest.threads or {}) do
-        for _, m in ipairs(thread.moments or {}) do
-            totalCount = totalCount + 1
-            if m.importance == "KEY" then keyCount = keyCount + 1 end
-        end
-    end
-    local busy = (keyCount >= 3) or (totalCount >= 5)
-    local count = busy and (rng(4) - 1) or rng(4) -- busy: 0..3, quiet: 1..4
-    if count <= 0 then return {} end
-
-    local abilityNames = {}
-    for _, a in ipairs(digest.abilities or {}) do
-        local name = a:match("^(.-) %(%d+%)$") or a
-        if name and name ~= "" then table.insert(abilityNames, name) end
-    end
-
-    local zone = rest.zone or "the road"
-    local place = rest.subzone or rest.zone or "camp"
-    local town = (digest.restKind ~= "campfire" and place) or ("a settlement in " .. zone)
-    local hearthKey = (digest.restKind == "campfire" and "hearth_campfire")
-        or (digest.indoors and "hearth_inn")
-        or "hearth_outdoors"
-
-    -- Build candidate slots so multiple rolled flavors come from different parts of the day.
-    local slots = {
-        { id = "road",        slot = "road",   cue = AI_FLAVOR_CUES.road },
-        { id = "town",        slot = "town",   cue = AI_FLAVOR_CUES.town },
-        { id = hearthKey,     slot = "hearth", cue = AI_FLAVOR_CUES[hearthKey] },
-    }
-    if #abilityNames > 0 then
-        table.insert(slots, 2, { id = "combat", slot = "combat", cue = AI_FLAVOR_CUES.combat })
-    end
-    -- Extra nature/road slot if a quiet night rolls 4 flavors without combat abilities.
-    table.insert(slots, { id = "road_nature", slot = "road", cue = AI_FLAVOR_CUES.road_nature })
-
-    -- Shuffle the primary slots so which categories appear first varies each rest.
-    local primaryCount = #abilityNames > 0 and 4 or 3
-    for i = primaryCount, 2, -1 do
-        local j = rng(i)
-        slots[i], slots[j] = slots[j], slots[i]
-    end
-
-    local picked = {}
-    for i = 1, math.min(count, #slots) do
-        local s = slots[i]
-        local ability = #abilityNames > 0 and abilityNames[rng(#abilityNames)] or nil
-        local vars = { zone = zone, place = place, town = town, ability = ability }
-        table.insert(picked, {
-            id = s.id,
-            slot = s.slot,
-            prompt = FillFlavor(s.cue, vars),
-            vars = vars,
-        })
-    end
-    return picked
-end
-
---- In-game hour -> a word for the prompt and the template writer.
+--- In-game hour -> a word for the prompt.
 function P.TimeOfDay(hour)
     if type(hour) ~= "number" then return nil end
     if hour < 5 then return "deep in the night" end
@@ -614,17 +524,17 @@ Rules:
 - Give KEY moments real weight and connect them to the character's fears, goals and past when a moment touches them. MINOR moments get a sentence at most. Small errands get at most one line.
 - Personal notes are the player's own words about their character: always include every one, faithfully and prominently, retold in the character's voice.
 - Stay within the length limit. If there is too much to tell, leave out MINOR moments and errands entirely rather than listing them; KEY moments and personal notes come first.
-- Only write what actually happened. A task marked "NOT finished yet" was only accepted: write about the request or the plan, never as if it were done. Do not invent fights, journeys or results.
+- Only write major events (tasks, journeys, milestones, companions) that actually happened. A task marked "NOT finished yet" was only accepted: write about the request or the plan, never as if it were done.
 - Retell quest story text in the character's own words; never copy it verbatim.
 - Companions may be named with their class as their calling, but invent nothing about them. People who asked for help ("Asked by") may be named.
-- When "SMALL SLICE-OF-LIFE MOMENTS" are given, weave them naturally into the entry as brief, grounded details or passing incidents, letting the character react in their own voice and temperament without overshadowing key events.
+- If the entry feels too short, quiet, or bland, invent a few small, unexpected slice-of-life moments that fit the zone, class, weather, or resting place (such as a minor combat or travel hiccup, a fleeting encounter with a local or passerby, a small gear nuisance, or a sensory detail while writing) — as long as they do not affect the plot, contradict recorded events, or repeat earlier entries.
 - Respect the character's class and level. Describe fights and feats the way their class really fights, using the abilities listed under "Abilities used most" when given (a shaman calls lightning from the elements, a rogue strikes from the shadows, a priest channels the Light or the Shadow). Keep their power appropriate to their level: a young adventurer uses modest, early abilities, never the feats of a seasoned hero.
 - If you can browse the web, you may look up the quests (by name or quest id), people, creatures and places on https://warcraft.wiki.gg/ for accurate lore details. Never contradict what is given here; if something isn't on the wiki (new content), rely on the text given.
 - %s No date line.]]
 
 P.LENGTH_RULES = {
     short = "Keep it brief: about 80 words for a quiet night, up to about 250 words when many things happened.",
-    normal = "Length follows how much happened: about 150 words for a quiet night, up to about 1000 words when many things happened. Never pad a quiet night.",
+    normal = "Length follows how much happened: about 150 words for a quiet night, up to about 1000 words when many things happened.",
     long = "Write generously: about 300 words for a quiet night, up to about 1200 words when many things happened, with rich detail.",
 }
 
@@ -695,16 +605,6 @@ local function AppendMoments(out, meta, digest, opts)
         line()
         line("MINOR ERRANDS (one line at most):")
         for _, c in ipairs(digest.collapsed) do line("- " .. c) end
-    end
-    if digest.flavors and #digest.flavors > 0 then
-        line()
-        line(("SMALL SLICE-OF-LIFE MOMENTS (be creative: invent %d brief, original slice-of-life %s following the cues below and weave %s naturally into the entry; keep %s lore-fitting, harmless to the story, true to the character's voice, and different from earlier entries):"):format(
-            #digest.flavors,
-            #digest.flavors == 1 and "moment" or "moments",
-            #digest.flavors == 1 and "it" or "them",
-            #digest.flavors == 1 and "it" or "them"
-        ))
-        for _, f in ipairs(digest.flavors) do line("- " .. f.prompt) end
     end
 end
 
