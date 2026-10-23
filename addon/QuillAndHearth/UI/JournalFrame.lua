@@ -345,9 +345,15 @@ function Journal:Build()
         b:SetHeight(20)
         if prev then b:SetPoint("LEFT", prev, "RIGHT", 2, 0) else b:SetPoint("LEFT", self.moodLabel, "RIGHT", 6, 0) end
         b:SetScript("OnClick", function()
-            local current = QH.char.state.pendingMood
-            QH:SetPendingMood(current ~= mood and mood or nil)
-            self:Refresh(PENDING)
+            if self.selectedEntry and self.selectedEntry.unwritten then
+                local current = self.selectedEntry.mood
+                QH:SetEntryMood(self.selectedEntry.id, current ~= mood and mood or nil)
+                self:Refresh(self.selectedEntry.id)
+            else
+                local current = QH.char.state.pendingMood
+                QH:SetPendingMood(current ~= mood and mood or nil)
+                self:Refresh(PENDING)
+            end
         end)
         b.mood = mood
         table.insert(self.moodButtons, b)
@@ -516,11 +522,13 @@ function Journal:RefreshList()
             y = y + HEADER_ROW
         end
         for _, e in ipairs(shown) do
-            local icon = e.restKind == "campfire" and "Interface\\Icons\\Spell_Fire_Fire" or "Interface\\Icons\\INV_Misc_Rune_01"
+            local icon = e.unwritten and "Interface\\Icons\\INV_Misc_Note_01"
+                or (e.restKind == "campfire" and "Interface\\Icons\\Spell_Fire_Fire" or "Interface\\Icons\\INV_Misc_Rune_01")
             local isNew = (e.t or 0) > seenBefore
+            local tag = e.unwritten and "|cffffd100LATER|r" or (isNew and "NEW" or nil)
             placeEntryRow(e.id, e.title or "Untitled",
                 DayLabel(e.day, e.dayEnd) .. (e.zone and ("  |cff999999" .. e.zone .. "|r") or ""),
-                icon, isNew and "NEW" or nil, e.favorite == true)
+                icon, tag, not e.unwritten and e.favorite == true)
         end
     end
 
@@ -564,10 +572,12 @@ function Journal:ShowPage(day, title, place, body, opts)
     self.placeText:SetText(place or "")
     self.bodyText:SetText(body or "")
 
-    for _, b in ipairs(self.tools) do b:SetShown(opts.tools == true) end
+    self.editButton:SetShown(opts.tools == true)
+    self.favButton:SetShown(opts.tools == true)
+    self.deleteButton:SetShown(opts.tools == true or opts.deleteOnly == true)
     local moodShown = opts.mood == true
     self.moodLabel:SetShown(moodShown)
-    local current = QH.char.state.pendingMood
+    local current = (self.selectedEntry and self.selectedEntry.unwritten) and self.selectedEntry.mood or QH.char.state.pendingMood
     for _, b in ipairs(self.moodButtons) do
         b:SetShown(moodShown)
         if b.mood == current then b:LockHighlight() else b:UnlockHighlight() end
@@ -592,7 +602,7 @@ function Journal:ShowPage(day, title, place, body, opts)
     if opts.primary or opts.secondary then bottom = 48 end
     if moodShown then bottom = 78 end
     self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -38, bottom)
-    self.scroll:SetPoint("TOPLEFT", self.page, "TOPLEFT", 30, opts.tools and -40 or -22)
+    self.scroll:SetPoint("TOPLEFT", self.page, "TOPLEFT", 30, (opts.tools or opts.deleteOnly) and -40 or -22)
     self:LayoutPage()
     self.scroll:SetVerticalScroll(0)
 end
@@ -621,22 +631,44 @@ end
 
 function Journal:ShowPendingPage()
     local d = self.pending.digest
+    local blockedBy = self.pending.blockedBy
     local nights = d.nights > 1 and (" (%d nights)"):format(d.nights) or ""
     local body = "Since your last entry:\n" .. SummarizeDigest(d)
     if d.reflections and #d.reflections > 0 then
         body = body .. "\n\n|cff5a3a1aA milestone:|r " .. table.concat(d.reflections, ", ") .. ". The entry will look back on how far you've come."
     end
+
+    local saveSpec = { "Save for later", function()
+        local entry, err = QH:SavePendingForLater(self.pending)
+        if entry then
+            QH:Print(('Saved %s for later. You can write it with AI anytime from your journal.'):format(DayLabel(entry.day, entry.dayEnd)))
+            self:Refresh(entry.id)
+        elseif err then
+            QH:Print(err)
+        end
+    end, { "Save for later", "Seal today's moments into your journal now so you can keep playing, and copy the prompt / paste the AI reply later when you're ready." } }
+
+    if blockedBy then
+        local firstLabel = DayLabel(blockedBy.day, blockedBy.dayEnd)
+        body = body .. ("\n\n|cff5a3a1aEarlier page still unwritten:|r %s was saved for later and hasn't been written with AI yet. Because each day's prompt needs the story so far from the previous day, write %s first — or save today's moments for later."):format(firstLabel, firstLabel)
+        self:ShowPage(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
+            PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, {
+                mood = QH:GetSetting("moodPrompt"),
+                primary = { "Go to " .. firstLabel, function() self:Select(blockedBy.id) end,
+                    { "Write " .. firstLabel .. " first", "Each day builds on the story so far. Write your earlier saved day with AI first, and this page will unlock." } },
+                secondary = saveSpec,
+            })
+        return
+    end
+
     body = body .. "\n\n|cff5a3a1aWrite with AI|r opens the prompt to copy into any AI chat (ChatGPT, Gemini, Claude...) and a box to paste the reply.\n"
-        .. "|cff5a3a1aWrite it plainly|r writes a simple entry right now, without any AI. You can still rewrite it with AI later."
+        .. "|cff5a3a1aSave for later|r seals today's moments into your journal so you can keep playing and write this entry with AI whenever you're ready."
     self:ShowPage(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
         PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, {
             mood = QH:GetSetting("moodPrompt"),
             primary = { "Write with AI", function() QH.Bridge:Show(self.job) end,
                 { "Write with AI", "Copy the prompt into any AI chat, then paste the reply. All in one window." } },
-            secondary = { "Write it plainly", function()
-                local entry, err = QH:WriteTemplateEntry(self.pending)
-                QH:Print(entry and ('"%s" was written into your journal.'):format(entry.title) or err)
-            end, { "Write it plainly", "Your character writes a simple entry right now, without any AI." } },
+            secondary = saveSpec,
         })
 end
 
@@ -644,11 +676,41 @@ function Journal:ShowEntryPage(e)
     local notes = {}
     if e.level then table.insert(notes, ("level %d"):format(e.level)) end
     if e.mood then table.insert(notes, e.mood:lower()) end
-    if e.source == "template" then table.insert(notes, "written plainly") end
+    if e.unwritten then table.insert(notes, "saved for later") end
     if e.rewrittenAt then table.insert(notes, "rewritten") end
     if e.editedAt then table.insert(notes, "edited") end
     local place = PlaceText(e.restKind, e.zone, e.subzone)
     if #notes > 0 then place = place .. "  |cff8a7a6a(" .. table.concat(notes, ", ") .. ")|r" end
+
+    if e.unwritten then
+        local d = e.digest
+        local body = "Saved moments for this day:\n" .. (d and SummarizeDigest(d) or "- Ready to write.")
+        if d and d.reflections and #d.reflections > 0 then
+            body = body .. "\n\n|cff5a3a1aA milestone:|r " .. table.concat(d.reflections, ", ") .. ". The entry will look back on how far you've come."
+        end
+        local firstUnwritten = QH:GetFirstUnwrittenEntry()
+        if firstUnwritten and firstUnwritten.id ~= e.id then
+            local firstLabel = DayLabel(firstUnwritten.day, firstUnwritten.dayEnd)
+            body = body .. ("\n\n|cff5a3a1aWaiting on %s:|r Write %s with AI first — its reply updates the story so far needed to generate this day's prompt."):format(firstLabel, firstLabel)
+            self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, body, {
+                deleteOnly = true,
+                primary = { "Go to " .. firstLabel, function() self:Select(firstUnwritten.id) end,
+                    { "Write " .. firstLabel .. " first", "Each day builds on the story so far. Write your earlier saved day with AI first, and this day's prompt will unlock." } },
+            })
+        else
+            body = body .. "\n\n|cff5a3a1aSaved for later.|r Click |cff5a3a1aWrite with AI|r whenever you're ready to copy the prompt and paste the AI's reply."
+            self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, body, {
+                deleteOnly = true,
+                mood = QH:GetSetting("moodPrompt"),
+                primary = { "Write with AI", function()
+                    local job, err = QH.Bridge.UnwrittenEntryJob(e)
+                    if job then QH.Bridge:Show(job) elseif err then QH:Print(err) end
+                end, { "Write with AI", "Copy the prompt for this saved day into any AI chat, then paste the reply." } },
+            })
+        end
+        return
+    end
+
     self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, e.body, {
         tools = true,
         primary = e.prompt and { "Rewrite with AI", function() QH.Bridge:Show(QH.Bridge.RewriteJob(e)) end,
@@ -679,8 +741,6 @@ function Journal:ShowChapterPage(ch)
             primary = { ch.summary and "Rewrite summary with AI" or "Summary with AI",
                 function() QH.Bridge:Show(QH.Bridge.ChapterJob(ch)) end,
                 { "Chapter summary with AI", "Copy a prompt with this chapter's entries into any AI chat for a title and a summary." } },
-            secondary = { "Write it plainly", function() QH:WriteChapterPlainly(ch.key) end,
-                { "Write it plainly", "A simple summary listing what happened, without any AI." } },
         })
 end
 
@@ -724,9 +784,13 @@ end
 ---------------------------------------------------------------------------
 function Journal:RefreshStatus()
     local unwritten, moments = QH:GetPendingInfo()
+    local firstUnwritten = QH:GetFirstUnwrittenEntry()
     local text
     if unwritten > 0 then
-        text = "|cffffd100An unwritten page is waiting.|r Write it with AI, or plainly."
+        text = "|cffffd100An unwritten page is waiting.|r Write with AI, or save it for later."
+    elseif firstUnwritten then
+        text = ("|cffffd100%s is saved for later.|r Select it to write with AI when ready.")
+            :format(DayLabel(firstUnwritten.day, firstUnwritten.dayEnd))
     elseif moments > 0 then
         text = ("%d %s since your last rest. Rest at an inn, a city or a campfire to write.")
             :format(moments, moments == 1 and "moment" or "moments")

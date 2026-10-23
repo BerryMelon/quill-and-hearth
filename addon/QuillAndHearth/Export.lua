@@ -89,7 +89,7 @@ function QH:BuildJournalMarkdown(favoritesOnly)
     for _, ch in ipairs(self:GetChapters()) do
         local kept = {}
         for _, e in ipairs(ch.entries) do
-            if not favoritesOnly or e.favorite then
+            if not e.unwritten and (not favoritesOnly or e.favorite) then
                 table.insert(kept, e)
                 table.insert(entries, e)
             end

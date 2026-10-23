@@ -16,7 +16,6 @@ function setGlobalString(name, value) {
   lua.lua_setglobal(L, to_luastring(name));
 }
 setGlobalString("PIPELINE_SRC", read("addon/QuillAndHearth/Pipeline.lua"));
-setGlobalString("TEMPLATES_SRC", read("addon/QuillAndHearth/Templates.lua"));
 setGlobalString("WRITER_SRC", read("addon/QuillAndHearth/Writer.lua"));
 setGlobalString("EXPORT_SRC", read("addon/QuillAndHearth/Export.lua"));
 setGlobalString("CAPTURE_SRC", read("addon/QuillAndHearth/Capture.lua"));

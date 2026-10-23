@@ -1,6 +1,6 @@
 -- Quill & Hearth: the story pipeline.
 -- Turns recorded events into a story-shaped digest and an LLM prompt, so a journal entry can be
--- written by any AI chat (copy the prompt, paste the reply back) or by the template writer.
+-- written by any AI chat (copy the prompt, paste the reply back).
 --
 -- Coherence rules:
 --   * moments are grouped into storylines (quest line, otherwise zone), not play order
@@ -433,35 +433,25 @@ function P.BuildDigest(sittings, startDay, hooks)
 end
 
 ---------------------------------------------------------------------------
--- Randomized slice-of-life flavor moments (seeded per rest, hidden from UI)
---   * Fixed IDs are used by Templates.lua ("Write it plainly")
---   * Generalized creative cues (`prompt`) are sent to the AI so it invents original moments
+-- Randomized slice-of-life flavor cues for the AI prompt (seeded per rest, hidden from UI)
 ---------------------------------------------------------------------------
-local FLAVOR_POOLS = {
-    hearth_inn = { "hearth_soup", "hearth_candle", "hearth_bard", "hearth_patrons", "hearth_boots" },
-    hearth_campfire = { "camp_ember", "camp_rustle", "camp_tea", "camp_stars", "camp_owl" },
-    hearth_outdoors = { "hearth_soup", "out_watch", "out_vendor", "out_breeze", "hearth_boots" },
-    combat = { "combat_miss", "combat_footing", "combat_ambush", "combat_exhaust", "combat_narrow", "combat_gear" },
-    town = { "town_drunk", "town_peddler", "town_guards", "town_lost", "town_courier", "town_children" },
-    road = { "road_wind", "road_strap", "road_stream", "road_pebble", "road_shower", "road_trinket", "road_shortcut", "road_wildlife" },
-}
-
 local AI_FLAVOR_CUES = {
     hearth_inn = "While writing tonight indoors at {place}: invent a small sensory detail or distraction in the room (e.g. the smell of a hearty soup or roast from the kitchen, a sputtering candle, background music or hushed tavern chatter, drying muddy boots by the hearth).",
     hearth_campfire = "While writing tonight by the campfire near {place}: invent a small sensory detail at camp (e.g. a popping ember, a harmless rustle in the brush beyond the firelight, rations simmering on the coals, the night sky over {zone}).",
     hearth_outdoors = "While sitting to write at {place}: invent a small passing detail around them (e.g. the smell of food from a nearby hearth, passing night watch lanterns, a late vendor packing up, or an evening breeze riffling the page).",
     combat = "During a skirmish in {zone} using {ability}: invent a brief, harmless combat mishap or close call (e.g. a missed or mistimed {ability} as the foe charged, a narrow dodge, slipping on the terrain, or a dent in their gear) before they recovered.",
     town = "While passing near {town}: invent a brief, inconsequential encounter with a local or passerby (e.g. a tipsy local asking for spare coin, a peddler, a guard, a hurried rider, or a traveler asking directions) and how the character reacted.",
-    road = "Along the road in {zone}: invent a small, mundane travel or weather mishap (e.g. wind blowing their hat or cloak back, a snapped pack strap, a pebble in their boot, washing dust off in a stream, or a startled critter bolting across the path).",
+    road = "Along the road in {zone}: invent a small, mundane travel or weather mishap (e.g. wind blowing their hat or cloak back, a snapped pack strap, a pebble in their boot, or a sudden passing shower).",
+    road_nature = "Out in {zone}: invent a small moment of roadside observation or pause (e.g. washing road dust off in a cold stream, spotting a curious small object beside the path, or a startled critter bolting across the trail).",
 }
 
 local function FillFlavor(template, vars)
     return (template:gsub("{(%w+)}", function(k) return vars[k] or "" end))
 end
 
---- Roll context-aware slice-of-life moments for a digest:
----   * busy night (3+ KEY moments or 5+ total moments): 0 to 3 flavors
----   * quiet night: 1 to 4 flavors
+--- Roll context-aware slice-of-life cues for a digest:
+---   * busy night (3+ KEY moments or 5+ total moments): 0 to 3 cues
+---   * quiet night: 1 to 4 cues
 function P.RollFlavors(digest)
     local rest = digest and digest.lastRest
     if not rest then return {} end
@@ -499,15 +489,15 @@ function P.RollFlavors(digest)
 
     -- Build candidate slots so multiple rolled flavors come from different parts of the day.
     local slots = {
-        { slot = "road",   pool = FLAVOR_POOLS.road,       cue = AI_FLAVOR_CUES.road },
-        { slot = "town",   pool = FLAVOR_POOLS.town,       cue = AI_FLAVOR_CUES.town },
-        { slot = "hearth", pool = FLAVOR_POOLS[hearthKey], cue = AI_FLAVOR_CUES[hearthKey] },
+        { id = "road",        slot = "road",   cue = AI_FLAVOR_CUES.road },
+        { id = "town",        slot = "town",   cue = AI_FLAVOR_CUES.town },
+        { id = hearthKey,     slot = "hearth", cue = AI_FLAVOR_CUES[hearthKey] },
     }
     if #abilityNames > 0 then
-        table.insert(slots, 2, { slot = "combat", pool = FLAVOR_POOLS.combat, cue = AI_FLAVOR_CUES.combat })
+        table.insert(slots, 2, { id = "combat", slot = "combat", cue = AI_FLAVOR_CUES.combat })
     end
-    -- Extra road slot if a quiet night rolls 4 flavors without combat abilities.
-    table.insert(slots, { slot = "road", pool = FLAVOR_POOLS.road, cue = AI_FLAVOR_CUES.road })
+    -- Extra nature/road slot if a quiet night rolls 4 flavors without combat abilities.
+    table.insert(slots, { id = "road_nature", slot = "road", cue = AI_FLAVOR_CUES.road_nature })
 
     -- Shuffle the primary slots so which categories appear first varies each rest.
     local primaryCount = #abilityNames > 0 and 4 or 3
@@ -516,25 +506,17 @@ function P.RollFlavors(digest)
         slots[i], slots[j] = slots[j], slots[i]
     end
 
-    local picked, usedIds = {}, {}
-    for _, s in ipairs(slots) do
-        if #picked >= count then break end
-        local candidates = {}
-        for _, id in ipairs(s.pool) do
-            if not usedIds[id] then table.insert(candidates, id) end
-        end
-        if #candidates > 0 then
-            local id = candidates[rng(#candidates)]
-            usedIds[id] = true
-            local ability = #abilityNames > 0 and abilityNames[rng(#abilityNames)] or nil
-            local vars = { zone = zone, place = place, town = town, ability = ability }
-            table.insert(picked, {
-                id = id,
-                slot = s.slot,
-                prompt = FillFlavor(s.cue, vars),
-                vars = vars,
-            })
-        end
+    local picked = {}
+    for i = 1, math.min(count, #slots) do
+        local s = slots[i]
+        local ability = #abilityNames > 0 and abilityNames[rng(#abilityNames)] or nil
+        local vars = { zone = zone, place = place, town = town, ability = ability }
+        table.insert(picked, {
+            id = s.id,
+            slot = s.slot,
+            prompt = FillFlavor(s.cue, vars),
+            vars = vars,
+        })
     end
     return picked
 end
@@ -861,10 +843,12 @@ function P.BuildChapterPrompt(profile, meta, chapter)
     local out = { CHAPTER_RULES, "", "CHARACTER", P.DescribeCharacter(profile, meta), "",
         ("CHAPTER %s (days %d to %d)"):format(chapter.numeral or "?", chapter.firstDay or 0, chapter.lastDay or 0), "" }
     for _, e in ipairs(chapter.entries) do
-        local body = P.Clean(e.body, 700) or ""
-        table.insert(out, ("Day %d - %s:"):format(e.day or 0, e.title or "Untitled"))
-        table.insert(out, OneLine(body))
-        table.insert(out, "")
+        if not e.unwritten then
+            local body = P.Clean(e.body, 700) or ""
+            table.insert(out, ("Day %d - %s:"):format(e.day or 0, e.title or "Untitled"))
+            table.insert(out, OneLine(body))
+            table.insert(out, "")
+        end
     end
     table.insert(out, CHAPTER_FORMAT)
     return table.concat(out, "\n")

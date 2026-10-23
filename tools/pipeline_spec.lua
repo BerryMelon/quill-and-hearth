@@ -112,11 +112,8 @@ end)
 print(("%d Lua tests passed"):format(passed))
 
 ---------------------------------------------------------------------------
--- Notes + template writer
+-- Notes + digest
 ---------------------------------------------------------------------------
-assert(load(TEMPLATES_SRC, "=Templates.lua"))("QuillAndHearth", QH)
-local T = QH.Templates
-
 -- A richer, scripted log: notes, a voyage, a death, a fear-touching quest, small errands.
 local function Log()
     local seq, t = 0, 1800000000
@@ -152,40 +149,6 @@ test("Notes are always KEY moments and appear in the prompt", function()
     assert(prompt:find("leave out MINOR moments"), "length rule missing")
 end)
 
-test("Template writer covers voyage, fear, death, errands and notes", function()
-    local events = Log()
-    local d = P.BuildDigest(P.FindSittings(events, 0), 5, P.DeriveHooks({ fear = "boars" }))
-    local w = T.Write(d, { name = "Ari", traits = { voice = "Plain", temperament = "Brooding" } })
-    assert(w.title and w.title ~= "", "no title")
-    local body = w.body
-    assert(body:find("Auberdine"), "opening should name the rest place")
-    assert(body:find("Kalimdor"), "voyage missing")
-    assert(body:find("Boar Trouble"), "key task missing")
-    assert(body:lower():find("boar"), "fear line missing")
-    assert(body:find("spirit healer"), "death missing")
-    assert(body:find("Westfall"), "errands line missing")
-    assert(body:find("letter from my sister"), "note missing")
-    assert(not body:find("{"), "unfilled placeholder: " .. body)
-    print("\n--- sample template entry (Plain, Brooding) ---\nTITLE: " .. w.title .. "\n\n" .. body .. "\n")
-end)
-
-test("Template writer is deterministic and voice-aware", function()
-    local d = P.BuildDigest(P.FindSittings(Log(), 0), 1, {})
-    local a = T.Write(d, { traits = { voice = "Terse" } })
-    local b = T.Write(d, { traits = { voice = "Terse" } })
-    eq(a.body, b.body, "same night, same text")
-    local poetic = T.Write(d, { traits = { voice = "Poetic", temperament = "Cheerful" } })
-    assert(poetic.body ~= a.body, "voices should differ")
-    print("--- sample template entry (Terse) ---\nTITLE: " .. a.title .. "\n\n" .. a.body .. "\n")
-end)
-
-test("Template writer handles a quiet night and no profile", function()
-    local d = P.BuildDigest({ { events = {}, rest = { seq = 3, t = 1, type = "rest", kind = "campfire", zone = "Durotar" } } }, 2, {})
-    local w = T.Write(d, nil)
-    assert(w.body:find("Durotar"), "rest place missing")
-    assert(not w.body:find("{"), "unfilled placeholder")
-end)
-
 print(("%d Lua tests passed in total"):format(passed))
 
 ---------------------------------------------------------------------------
@@ -193,23 +156,22 @@ print(("%d Lua tests passed in total"):format(passed))
 ---------------------------------------------------------------------------
 do
     GetServerTime = function() return 2000000000 end
-    local W = { Pipeline = QH.Pipeline, Templates = QH.Templates }
+    local W = { Pipeline = QH.Pipeline }
     assert(load(WRITER_SRC, "=Writer.lua"))("QuillAndHearth", W)
     W.charKey = "Ari-Test"
-    -- An older entry already in the journal (e.g. migrated from the old companion).
     W.char = { events = Log(), meta = { name = "Ari" }, state = {}, journal = { entries = {
-        { id = "Ari-Test:old", t = 1, day = 1, title = "Old Title", body = "Old text", prompt = "OLD PROMPT", source = "companion" },
+        { id = "Ari-Test:old", t = 1, day = 1, title = "Old Title", body = "Old text", prompt = "OLD PROMPT", source = "paste" },
     } } }
     W.Send = function() end
     W.GetProfile = function() return { name = "Ari", traits = { voice = "Plain" } } end
     W.GetSetting = function(_, key) return ({ moodPrompt = true, length = "normal" })[key] end
 
-    test("Template entries keep their prompt", function()
+    test("AI entries keep their full prompt", function()
         local pending = W:GetPendingWrite()
         assert(pending and pending.prompt:find("TITLE:"), "no pending prompt")
-        local entry = W:WriteTemplateEntry(pending)
-        eq(entry.source, "template")
-        eq(entry.prompt, pending.prompt)
+        local entry = W:SaveWrittenEntry(pending, "TITLE: Across the Water\nENTRY:\nWe reached Auberdine.\nMEMORY: Ari reached Auberdine.")
+        eq(entry.source, "paste")
+        eq(entry.prompt, pending.fullPrompt)
         eq(W:GetPendingWrite(), nil, "nothing left to write")
     end)
 
@@ -324,20 +286,6 @@ test("Prompt carries mood, time of day, reflections, givers and the length setti
     assert(long:find("Write generously", 1, true))
 end)
 
-test("Template writer handles the new moments, mood, time of day and reflections", function()
-    local d = P.BuildDigest(P.FindSittings(RichLog(), 0), 1, {})
-    local w = T.Write(d, { traits = { voice = "Plain", temperament = "Stoic" } }, { mood = "Triumphant" })
-    local b = w.body
-    for _, needle in ipairs({ "late at night", "Magister Landra", "Sunstrider Blade", "Silvermoon City", "Tailoring",
-        "Explore Eversong Woods", "campfire", "spirit healer" }) do
-        assert(b:find(needle, 1, true), "missing " .. needle .. " in:\n" .. b)
-    end
-    assert(not b:find("{"), "unfilled placeholder:\n" .. b)
-    local moodLine = b:find("What a day", 1, true) or b:find("I did well", 1, true)
-    assert(moodLine, "triumphant closing expected:\n" .. b)
-    print("\n--- sample (Plain, Triumphant, rich night) ---\nTITLE: " .. w.title .. "\n\n" .. b .. "\n")
-end)
-
 test("Chat patterns built from Blizzard format strings", function()
     LOOT_ITEM_SELF = "You receive loot: %s."
     LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %sx%d."
@@ -394,7 +342,7 @@ do
         eq(chapters[1].title, "The Days in Silvermoon City")
     end)
 
-    test("Chapter summaries: AI prompt, pasted reply and plain version", function()
+    test("Chapter summaries: AI prompt and pasted reply", function()
         local ch = W:GetChapters()[1]
         local prompt = W:GetChapterPrompt(ch)
         assert(prompt:find("Day 2 - Lynxes:", 1, true), "entries in prompt")
@@ -402,9 +350,6 @@ do
         local saved = W:SaveChapterSummary(ch.key, "TITLE: Ashes of Quel'Thalas\nENTRY:\nA chapter of beginnings.")
         eq(saved.title, "Ashes of Quel'Thalas")
         eq(saved.summary, "A chapter of beginnings.")
-        local plain = W:WriteChapterPlainly(W:GetChapters()[2].key)
-        assert(plain.summary:find('"Stronger"', 1, true), "plain summary lists the entries")
-        assert(not plain.summary:find("{"), "unfilled placeholder")
     end)
 
     test("Edit and favourite entries", function()
@@ -423,7 +368,7 @@ do
         W:SetPendingMood("Hopeful")
         local pending = W:GetPendingWrite()
         assert(pending.prompt:find("mood tonight: Hopeful", 1, true))
-        local entry = W:WriteTemplateEntry(pending)
+        local entry = W:SaveWrittenEntry(pending, "TITLE: Eversong\nENTRY:\nWords.\nMEMORY: m")
         eq(entry.mood, "Hopeful")
         eq(entry.continent, "Eastern Kingdoms")
         eq(W.char.state.pendingMood, nil)
@@ -466,17 +411,13 @@ do
         ["Someone New"] = { first = 9999999999, tasks = {} },
     } }
 
-    test("People met before are remembered in the prompt and the plain entry (not shown in the UI)", function()
+    test("People met before are remembered in the prompt (not shown in the UI)", function()
         local pending = W:GetPendingWrite()
         local prompt = pending.prompt
         assert(prompt:find("PEOPLE MET BEFORE", 1, true), "section missing")
         assert(prompt:find("- Magister Landra; first met in Silvermoon City; earlier tasks: An Old Favour", 1, true), "earlier dealings")
         assert(not prompt:find("earlier tasks: An Old Favour, Lynx Trouble", 1, true), "tonight's task is not 'earlier'")
         assert(not prompt:find("Someone New", 1, true), "only people met before")
-        local entry = W:WriteTemplateEntry(pending)
-        local again = entry.body:find("Magister Landra again", 1, true) or entry.body:find("Once more it was Magister Landra", 1, true)
-            or entry.body:find("for Magister Landra again", 1, true)
-        assert(again, "plain entry should recognise a familiar face:\n" .. entry.body)
     end)
 
     test("v0.11: killer on death, notable foes, new spells learned, coin milestones/spends, and indoors", function()
@@ -499,11 +440,76 @@ do
         assert(prompt:find('learned a new ability "Ghost Wolf"', 1, true), "learned spell in prompt")
         assert(prompt:find('saved up "their first gold piece"', 1, true), "coin milestone in prompt")
         assert(prompt:find("spent 90 silver and was left with 4 silver", 1, true), "coin spend in prompt")
+    end)
 
-        local entry = W:WriteTemplateEntry(pending)
-        for _, needle in ipairs({ "Hogger", "Defias Pillager", "Ghost Wolf", "their first gold piece", "90 silver" }) do
-            assert(entry.body:find(needle, 1, true), "missing " .. needle .. " in:\n" .. entry.body)
-        end
+    test("Save for later & chronological day ordering (Day 2 waits for Day 1's story so far)", function()
+        local events = {
+            { seq = 1, t = 100, type = "quest_done", questID = 101, title = "Day One Task", questLine = "Crown of the Earth", zone = "Teldrassil", level = 5 },
+            { seq = 2, t = 200, type = "rest", kind = "rested", indoors = true, zone = "Teldrassil", subzone = "Dolanaar", hour = 21, level = 5 },
+        }
+        W.char.events = events
+        W.char.journal = nil
+        W:SetAISessionStarted(false)
+        W:SetPendingMood("Hopeful")
+
+        -- 1. Save Day 1 for later (no AI reply pasted yet).
+        local pendingDay1 = W:GetPendingWrite()
+        assert(pendingDay1 and pendingDay1.prompt, "Day 1 prompt is ready initially")
+        local day1 = W:SavePendingForLater(pendingDay1)
+        assert(day1 and day1.unwritten == true, "Day 1 saved as unwritten")
+        eq(day1.day, 1)
+        eq(day1.mood, "Hopeful")
+        eq(W:GetPendingWrite(), nil, "live pending cleared after saving Day 1 for later")
+        eq(W:GetFirstUnwrittenEntry().id, day1.id)
+
+        -- 2. Player plays Day 2 and rests while Day 1 is still unwritten.
+        table.insert(W.char.events, { seq = 3, t = 500, type = "quest_done", questID = 102, title = "Day Two Task", questLine = "Crown of the Earth", zone = "Teldrassil", level = 6 })
+        table.insert(W.char.events, { seq = 4, t = 600, type = "rest", kind = "campfire", zone = "Teldrassil", subzone = "Starbreeze Village", hour = 22, level = 6 })
+
+        local pendingDay2 = W:GetPendingWrite()
+        assert(pendingDay2, "Day 2 has pending digest")
+        eq(pendingDay2.digest.startDay, 2)
+        eq(pendingDay2.blockedBy and pendingDay2.blockedBy.id, day1.id, "Day 2 is blocked by unwritten Day 1")
+        eq(pendingDay2.prompt, nil, "Day 2 has no prompt while Day 1 is unwritten")
+
+        -- Trying to write Day 2 before Day 1 is rejected.
+        local badSave, badErr = W:SaveWrittenEntry(pendingDay2, "TITLE: Jumping Ahead\nENTRY:\nNope.\nMEMORY: m")
+        eq(badSave, nil)
+        assert(badErr:find("Write Day 1 first", 1, true), "error should tell user to write Day 1 first: " .. tostring(badErr))
+
+        -- 3. Player saves Day 2 for later as well.
+        local day2 = W:SavePendingForLater(pendingDay2)
+        assert(day2 and day2.unwritten == true, "Day 2 also saved for later")
+        eq(day2.day, 2)
+
+        -- Day 2's prompt is still locked because Day 1 is unwritten.
+        local p2Locked, p2Err, blocker = W:GetUnwrittenEntryPrompts(day2.id)
+        eq(p2Locked, nil)
+        eq(blocker.id, day1.id)
+        assert(p2Err:find("Write Day 1 first", 1, true))
+
+        -- Day 1's prompt IS available because it is the oldest unwritten entry.
+        W:SetEntryMood(day1.id, "Weary")
+        local p1Prompts = W:GetUnwrittenEntryPrompts(day1.id)
+        assert(p1Prompts and p1Prompts.fullPrompt:find("Day One Task", 1, true), "Day 1 prompt has Day 1 task")
+        assert(p1Prompts.fullPrompt:find("mood tonight: Weary", 1, true), "Day 1 prompt reflects updated mood")
+
+        -- 4. Writing Day 1 with AI saves its title, body, and MEMORY, and unlocks Day 2!
+        local writtenDay1 = W:SaveUnwrittenEntry(day1.id, "TITLE: The Boughs of Teldrassil\nENTRY:\nI rested in Dolanaar.\nMEMORY: Eminai completed her first task in Teldrassil and rested in Dolanaar.")
+        assert(writtenDay1 and not writtenDay1.unwritten, "Day 1 is now written")
+        eq(writtenDay1.title, "The Boughs of Teldrassil")
+        eq(W:GetFirstUnwrittenEntry().id, day2.id, "Day 2 is now the first unwritten entry")
+
+        -- 5. Day 2's prompt is now unlocked and contains Day 1's STORY SO FAR and title!
+        local p2Unlocked = W:GetUnwrittenEntryPrompts(day2.id)
+        assert(p2Unlocked, "Day 2 prompt is now unlocked")
+        assert(p2Unlocked.fullPrompt:find("Eminai completed her first task in Teldrassil", 1, true), "Day 2 fullPrompt includes Day 1's STORY SO FAR")
+        assert(p2Unlocked.fullPrompt:find("The Boughs of Teldrassil", 1, true), "Day 2 fullPrompt includes Day 1's title")
+        assert(p2Unlocked.prompt:find("Day Two Task", 1, true), "Day 2 prompt has Day 2 task")
+
+        local writtenDay2 = W:SaveUnwrittenEntry(day2.id, "TITLE: Embers at Starbreeze\nENTRY:\nCamped by the village.\nMEMORY: Eminai camped near Starbreeze Village on Day 2.")
+        assert(writtenDay2 and not writtenDay2.unwritten, "Day 2 is now written")
+        eq(W:GetFirstUnwrittenEntry(), nil, "no unwritten entries left")
     end)
 
     test("Session-based prompts and uncut TRP3 descriptions", function()
@@ -578,7 +584,7 @@ do
                     )
                 elseif f.slot == "hearth" then
                     sawHearth = true
-                    assert(f.id:find("^camp_"), "campfire rest should only pick campfire hearth flavors, got " .. f.id)
+                    assert(f.id == "hearth_campfire", "campfire rest should only pick campfire hearth cue, got " .. f.id)
                 end
             end
 
@@ -595,15 +601,11 @@ do
             for _, f in ipairs(qd.flavors) do
                 assert(f.slot ~= "combat", "quiet night with no abilities must never roll a combat flavor")
                 if f.slot == "hearth" then
-                    assert(f.id:find("^hearth_"), "indoor rest should pick indoor hearth flavors, got " .. f.id)
+                    assert(f.id == "hearth_inn", "indoor rest should pick indoor hearth cue, got " .. f.id)
                 end
             end
             local prompt = P.BuildPrompt(nil, { name = "Eminai" }, "", qd, {})
             assert(prompt:find("SMALL SLICE-OF-LIFE MOMENTS", 1, true), "quiet night prompt must include flavor section")
-            for _, voice in ipairs({ "Plain", "Formal", "Poetic", "Terse" }) do
-                local w = T.Write(qd, { traits = { voice = voice } })
-                assert(not w.body:find("{"), "unfilled placeholder in template flavor (" .. voice .. "): " .. w.body)
-            end
         end
 
         assert(busyCounts[0] and busyCounts[1] and busyCounts[2] and busyCounts[3], "busy nights should cover 0..3 across seeds")

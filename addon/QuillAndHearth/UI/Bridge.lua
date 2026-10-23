@@ -102,6 +102,19 @@ function Bridge.PendingJob(pending)
     }
 end
 
+function Bridge.UnwrittenEntryJob(entry)
+    local prompts, err = QH:GetUnwrittenEntryPrompts(entry.id)
+    if not prompts then return nil, err end
+    return {
+        kind = "entry",
+        prompt = prompts.prompt,
+        fullPrompt = prompts.fullPrompt,
+        sessionPrompt = prompts.sessionPrompt,
+        select = entry.id,
+        save = function(text) return QH:SaveUnwrittenEntry(entry.id, text) end,
+    }
+end
+
 function Bridge.RewriteJob(entry)
     local profile = QH:GetProfile()
     local name = (profile and profile.name) or (QH.char and QH.char.meta and QH.char.meta.name)

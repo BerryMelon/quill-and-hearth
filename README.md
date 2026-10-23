@@ -1,16 +1,16 @@
 # Quill & Hearth
 
-An automatic, first-person roleplay journal for **World of Warcraft: Forever**. Your character writes about their adventures whenever they rest at an inn, in a city, or by a campfire.
+An AI-driven, first-person roleplay journal for **World of Warcraft: Forever**. Your character writes about their adventures whenever they rest at an inn, in a city, or by a campfire.
 
-**No extra software needed.** When your character rests, the journal shows an *unwritten page*:
-- **Write it plainly**: your character writes a simple entry instantly, in their own voice, with no AI.
-- **Copy prompt / Paste entry**: paste the prompt into any AI chat (ChatGPT, Gemini, Claude...) and paste the reply back for a rich, personal entry.
+**No companion app needed.** When your character rests, the journal shows an *unwritten page*:
+- **Write with AI**: copy a story-shaped prompt into any AI chat (ChatGPT, Gemini, Claude...) and paste the reply back for a rich, personal entry.
+- **Save for later**: if you don't have an AI chat open right now, seal today's moments into your journal and keep playing. You can write your saved days with AI later in chronological order (Day 1 -> Day 2 -> ...), since each day builds on the previous day's *story so far*.
 
-Every entry keeps its prompt, so you can turn a plain entry into an AI one later (**Copy prompt / Paste new version**). Total RP 3 profiles can be imported; otherwise a short setup wizard asks about your character.
+Every written entry keeps its prompt, so you can rewrite it with AI anytime (**Rewrite with AI**). Total RP 3 profiles can be imported (with uncut descriptions via **AI Chat Session Setup**); otherwise a 5-step setup wizard asks about your character.
 
 ## Layout
-- `addon/QuillAndHearth/`: the addon (Lua). It records story moments, builds the story prompt, writes plain entries and shows the journal.
-- `tools/`: dev tooling (Lua syntax check, Lua tests via fengari).
+- `addon/QuillAndHearth/`: the addon (Lua). It records story moments, builds the AI story prompt, manages saved-for-later days, and shows the journal.
+- `tools/`: dev tooling (Lua syntax check, Lua tests via fengari, release packager).
 - `docs/`: plan, progress notes, research.
 
 ## Development
