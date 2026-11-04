@@ -5,7 +5,10 @@ import zlib from "node:zlib";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const ADDON_DIR = path.join(ROOT, "addon", "QuillAndHearth");
-const ICON_PATH = path.join(ADDON_DIR, "Media", "Icon.tga");
+const MEDIA_DIR = path.join(ADDON_DIR, "Media");
+const ICON_PATH = path.join(MEDIA_DIR, "Icon.tga");
+const STAR_PATH = path.join(MEDIA_DIR, "Star.tga");
+const TRASH_PATH = path.join(MEDIA_DIR, "Trash.tga");
 const DIST_DIR = path.join(ROOT, "dist");
 
 // ---------------------------------------------------------------------------
@@ -128,6 +131,90 @@ function generateIconTga(filePath) {
     fs.writeFileSync(filePath, Buffer.concat([header, pixels]));
 }
 
+function writeRgbaTga(filePath, W, H, alphaAt) {
+    const header = Buffer.alloc(18, 0);
+    header[2] = 2;
+    header.writeUInt16LE(W, 12);
+    header.writeUInt16LE(H, 14);
+    header[16] = 32;
+    header[17] = 0x28; // top-left origin + 8-bit alpha
+
+    const pixels = Buffer.alloc(W * H * 4);
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            const a = clamp(alphaAt((x + 0.5) / W, (y + 0.5) / H) * 255);
+            const idx = (y * W + x) * 4;
+            pixels[idx] = 255;
+            pixels[idx + 1] = 255;
+            pixels[idx + 2] = 255;
+            pixels[idx + 3] = a;
+        }
+    }
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, Buffer.concat([header, pixels]));
+}
+
+// Signed distance to a 2D line segment (ax, ay) -> (bx, by)
+function distToSeg(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+// Simple flat 5-pointed star icon (32x32 white + alpha, tinted in-game)
+function generateStarTga(filePath) {
+    const W = 32, H = 32;
+    const cx = 0.5, cy = 0.52;
+    const rOuter = 0.41, rInner = 0.175;
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+        const ang = -Math.PI / 2 + (i * Math.PI) / 5;
+        const r = i % 2 === 0 ? rOuter : rInner;
+        pts.push([cx + Math.cos(ang) * r, cy + Math.sin(ang) * r]);
+    }
+    writeRgbaTga(filePath, W, H, (nx, ny) => {
+        // Point-in-polygon + distance to nearest edge for crisp anti-aliasing
+        let inside = false;
+        let minDist = 999;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+            const [xi, yi] = pts[i];
+            const [xj, yj] = pts[j];
+            if ((yi > ny) !== (yj > ny) && nx < ((xj - xi) * (ny - yi)) / (yj - yi) + xi) {
+                inside = !inside;
+            }
+            minDist = Math.min(minDist, distToSeg(nx, ny, xi, yi, xj, yj));
+        }
+        const signed = inside ? minDist : -minDist;
+        const aa = 1.0 / W;
+        return Math.max(0, Math.min(1, (signed + aa * 0.6) / (aa * 1.2)));
+    });
+}
+
+// Simple minimal trash-can icon (32x32 white + alpha, tinted in-game)
+function generateTrashTga(filePath) {
+    const W = 32, H = 32;
+    const aa = 1.1 / W;
+    const smoothBox = (nx, ny, x0, y0, x1, y1) => {
+        const dx = Math.max(x0 - nx, 0, nx - x1);
+        const dy = Math.max(y0 - ny, 0, ny - y1);
+        const outside = Math.hypot(dx, dy);
+        const inside = Math.min(nx - x0, x1 - nx, ny - y0, y1 - ny);
+        const d = outside > 0 ? -outside : inside;
+        return Math.max(0, Math.min(1, (d + aa * 0.5) / aa));
+    };
+    writeRgbaTga(filePath, W, H, (nx, ny) => {
+        // Lid bar + top handle
+        const lid = smoothBox(nx, ny, 0.20, 0.22, 0.80, 0.29);
+        const handle = Math.max(0, smoothBox(nx, ny, 0.37, 0.14, 0.63, 0.23) - smoothBox(nx, ny, 0.43, 0.19, 0.57, 0.24));
+        // Can body with two clean vertical cutouts inside
+        const outerBody = smoothBox(nx, ny, 0.26, 0.34, 0.74, 0.86);
+        const slotL = smoothBox(nx, ny, 0.38, 0.44, 0.45, 0.76);
+        const slotR = smoothBox(nx, ny, 0.55, 0.44, 0.62, 0.76);
+        const body = Math.max(0, outerBody - Math.max(slotL, slotR));
+        return Math.max(lid, handle, body);
+    });
+}
+
 // ---------------------------------------------------------------------------
 // 2. Minimal pure-Node ZIP writer (no external CLI dependency)
 // ---------------------------------------------------------------------------
@@ -225,7 +312,9 @@ function buildZip(entries) {
 }
 
 generateIconTga(ICON_PATH);
-console.log(`ok    generated ${path.relative(ROOT, ICON_PATH)}`);
+generateStarTga(STAR_PATH);
+generateTrashTga(TRASH_PATH);
+console.log(`ok    generated ${path.relative(ROOT, ICON_PATH)}, Star.tga, Trash.tga`);
 
 const toc = fs.readFileSync(path.join(ADDON_DIR, "QuillAndHearth.toc"), "utf8");
 const version = (toc.match(/^##\s*Version:\s*(.+)$/m)?.[1] || "dev").trim();
