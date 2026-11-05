@@ -133,21 +133,19 @@ function QH:PushRest(kind, how)
 end
 
 ---------------------------------------------------------------------------
--- Logout detection (distinguish a real logout from /reload)
+-- Logout detection (distinguish a real logout from /reload without hooking protected Logout/Quit)
 ---------------------------------------------------------------------------
-local loggingOut = false
+local reloading = false
 
-if type(Logout) == "function" then
-    hooksecurefunc("Logout", function() loggingOut = true end)
+if type(ReloadUI) == "function" then
+    hooksecurefunc("ReloadUI", function() reloading = true end)
 end
-if type(Quit) == "function" then
-    hooksecurefunc("Quit", function() loggingOut = true end)
+if C_UI and type(C_UI.Reload) == "function" then
+    hooksecurefunc(C_UI, "Reload", function() reloading = true end)
 end
-
-QH:On("LOGOUT_CANCEL", function() loggingOut = false end)
 
 QH:On("PLAYER_LOGOUT", function()
-    if not loggingOut or not QH.char then return end
+    if reloading or not QH.char then return end
     local kind = QH:GetRestKind()
     if kind then
         QH:PushRest(kind, "logout")
@@ -157,22 +155,6 @@ end)
 ---------------------------------------------------------------------------
 -- Manual rest: /quill rest
 ---------------------------------------------------------------------------
-StaticPopupDialogs["QUILLANDHEARTH_REST"] = {
-    text = "Rest a while and write in your journal?",
-    button1 = "Write",
-    button2 = CANCEL,
-    OnAccept = function()
-        local kind = QH:GetRestKind()
-        if kind then
-            QH:PushRest(kind, "manual")
-            QH.Journal:Open({ ritual = true }) -- the unwritten page is ready to write
-        end
-    end,
-    timeout = 0,
-    whileDead = false,
-    hideOnEscape = true,
-}
-
 --- Ask to rest and write (used by /quill rest and the minimap menu).
 function QH:RequestRest()
     if InCombatLockdown() then
@@ -183,7 +165,18 @@ function QH:RequestRest()
         QH:Print("You need a safe place to rest before you can write: an inn, a city, or a campfire.")
         return
     end
-    StaticPopup_Show("QUILLANDHEARTH_REST")
+    self:ShowConfirm({
+        text = "Rest a while and write in your journal?",
+        button1 = "Write",
+        button2 = CANCEL or "Cancel",
+        onAccept = function()
+            local kind = QH:GetRestKind()
+            if kind then
+                QH:PushRest(kind, "manual")
+                QH.Journal:Open({ ritual = true }) -- the unwritten page is ready to write
+            end
+        end,
+    })
 end
 
 QH:RegisterCommand("rest", "rest and write in your journal (inn, city or campfire)", function()

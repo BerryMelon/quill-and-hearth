@@ -48,63 +48,31 @@ function QH:ImportFromTRP3(silent)
 end
 
 ---------------------------------------------------------------------------
--- Popups
----------------------------------------------------------------------------
-StaticPopupDialogs["QUILLANDHEARTH_ONBOARD_TRP3"] = {
-    text = "|cffd8b26aQuill & Hearth|r\n\nTotal RP 3 is installed. Import your character sheet (|cffffffff%s|r) so your journal is written in your character's own voice?",
-    button1 = "Import",
-    button2 = "Set up manually",
-    button3 = "Later",
-    OnAccept = function() QH:ImportFromTRP3() end,
-    OnCancel = function(_, _, reason)
-        if reason == "override" or reason == "timeout" then return end
-        QH.Wizard:Open()
-    end,
-    OnAlt = function() QH:Print("No problem. Type |cffffd100/quill setup|r whenever you're ready.") end,
-    timeout = 0,
-    whileDead = true,
-    hideOnEscape = false,
-}
-
-StaticPopupDialogs["QUILLANDHEARTH_ONBOARD"] = {
-    text = "|cffd8b26aQuill & Hearth|r\n\nYour character will keep a journal of their adventures, written whenever they rest.\n\nFirst, a few questions about who they are.",
-    button1 = "Begin",
-    button2 = "Later",
-    OnAccept = function() QH.Wizard:Open() end,
-    OnCancel = function(_, _, reason)
-        if reason == "override" or reason == "timeout" then return end
-        QH:Print("No problem. Type |cffffd100/quill setup|r whenever you're ready.")
-    end,
-    timeout = 0,
-    whileDead = true,
-    hideOnEscape = false,
-}
-
-StaticPopupDialogs["QUILLANDHEARTH_TRP3_CHANGED"] = {
-    text = "|cffd8b26aQuill & Hearth|r\n\nYour Total RP 3 profile has changed. Update your journal's character too?",
-    button1 = "Update",
-    button2 = "Not now",
-    OnAccept = function() QH:ImportFromTRP3() end,
-    OnCancel = function(_, _, reason)
-        if reason == "override" or reason == "timeout" then return end
-        QH.char.state.trp3DismissedVersion = QH.TRP3.GetVersion()
-    end,
-    timeout = 0,
-    whileDead = true,
-    hideOnEscape = false,
-}
-
----------------------------------------------------------------------------
 -- Flow
 ---------------------------------------------------------------------------
 --- Show the right first step: TRP3 import offer if possible, otherwise the wizard intro.
 function QH:StartOnboarding(skipIntro)
     if self.TRP3.IsReady() then
-        StaticPopup_Show("QUILLANDHEARTH_ONBOARD_TRP3", self.TRP3.GetProfileName() or UnitName("player"))
+        local trpName = self.TRP3.GetProfileName() or UnitName("player")
+        self:ShowConfirm({
+            text = ("|cffd8b26aQuill & Hearth|r\n\nTotal RP 3 is installed. Import your character sheet (|cffffffff%s|r) so your journal is written in your character's own voice?"):format(trpName),
+            button1 = "Import",
+            button2 = "Set up manually",
+            button3 = "Later",
+            onAccept = function() QH:ImportFromTRP3() end,
+            onCancel = function() QH.Wizard:Open() end,
+            onAlt = function() QH:Print("No problem. Type |cffffd100/quill setup|r whenever you're ready.") end,
+        })
     elseif skipIntro then
         self.Wizard:Open()
     else
-        StaticPopup_Show("QUILLANDHEARTH_ONBOARD")
+        self:ShowConfirm({
+            text = "|cffd8b26aQuill & Hearth|r\n\nYour character will keep a journal of their adventures, written whenever they rest.\n\nFirst, a few questions about who they are.",
+            button1 = "Begin",
+            button2 = "Later",
+            onAccept = function() QH.Wizard:Open() end,
+            onCancel = function() QH:Print("No problem. Type |cffffd100/quill setup|r whenever you're ready.") end,
+        })
     end
 end
 
@@ -119,7 +87,13 @@ local function CheckTRP3Changed()
     local current = QH.TRP3.GetVersion()
     local imported = profile.trp3 and profile.trp3.version
     if current and current ~= imported and current ~= QH.char.state.trp3DismissedVersion then
-        StaticPopup_Show("QUILLANDHEARTH_TRP3_CHANGED")
+        QH:ShowConfirm({
+            text = "|cffd8b26aQuill & Hearth|r\n\nYour Total RP 3 profile has changed. Update your journal's character too?",
+            button1 = "Update",
+            button2 = "Not now",
+            onAccept = function() QH:ImportFromTRP3() end,
+            onCancel = function() QH.char.state.trp3DismissedVersion = QH.TRP3.GetVersion() end,
+        })
     end
 end
 

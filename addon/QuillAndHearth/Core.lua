@@ -35,6 +35,95 @@ function QH.Truncate(s, maxLen)
 end
 
 ---------------------------------------------------------------------------
+-- Zero-taint confirmation popup (avoids touching Blizzard's StaticPopup1)
+---------------------------------------------------------------------------
+local confirmFrame
+
+local function BuildConfirmFrame()
+    local f = CreateFrame("Frame", "QuillAndHearthConfirmDialog", UIParent)
+    f:SetSize(380, 150)
+    f:SetPoint("TOP", UIParent, "TOP", 0, -140)
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetToplevel(true)
+    f:SetClampedToScreen(true)
+    f:EnableMouse(true)
+    f:SetMovable(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:Hide()
+
+    local border = f:CreateTexture(nil, "BACKGROUND")
+    border:SetAllPoints()
+    border:SetColorTexture(0.42, 0.33, 0.18, 0.96)
+
+    local bg = f:CreateTexture(nil, "BORDER")
+    bg:SetPoint("TOPLEFT", 2, -2)
+    bg:SetPoint("BOTTOMRIGHT", -2, 2)
+    bg:SetColorTexture(0.09, 0.08, 0.06, 0.96)
+
+    f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.text:SetPoint("TOPLEFT", 20, -18)
+    f.text:SetPoint("TOPRIGHT", -20, -18)
+    f.text:SetJustifyH("CENTER")
+    f.text:SetSpacing(2)
+
+    f.buttons = {}
+    for i = 1, 3 do
+        local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        b:SetHeight(24)
+        f.buttons[i] = b
+    end
+    return f
+end
+
+--- Show a self-contained confirmation dialog without touching Blizzard's StaticPopup frames.
+--- spec: { text, button1, button2, button3, onAccept, onCancel, onAlt }
+function QH:ShowConfirm(spec)
+    confirmFrame = confirmFrame or BuildConfirmFrame()
+    local f = confirmFrame
+    f.text:SetText(spec.text or "")
+
+    local defs = {
+        { label = spec.button1 or OKAY or "Okay", fn = spec.onAccept },
+        spec.button2 and { label = spec.button2, fn = spec.onCancel } or nil,
+        spec.button3 and { label = spec.button3, fn = spec.onAlt } or nil,
+    }
+    local count = #defs
+    local totalW = 0
+    local gap = 10
+    for i = 1, 3 do
+        local b = f.buttons[i]
+        local d = defs[i]
+        if d then
+            b:SetText(d.label)
+            local w = math.max(96, b:GetTextWidth() + 28)
+            b:SetWidth(w)
+            b:SetScript("OnClick", function()
+                f:Hide()
+                if d.fn then d.fn() end
+            end)
+            b:Show()
+            totalW = totalW + w + (i > 1 and gap or 0)
+        else
+            b:Hide()
+        end
+    end
+
+    local x = -totalW / 2
+    for i = 1, count do
+        local b = f.buttons[i]
+        b:ClearAllPoints()
+        b:SetPoint("BOTTOMLEFT", f, "BOTTOM", x, 16)
+        x = x + b:GetWidth() + gap
+    end
+
+    local textH = math.max(36, f.text:GetStringHeight())
+    f:SetSize(math.max(380, totalW + 44), textH + 74)
+    f:Show()
+end
+
+---------------------------------------------------------------------------
 -- Event dispatch (WoW events + internal messages)
 ---------------------------------------------------------------------------
 local frame = CreateFrame("Frame")

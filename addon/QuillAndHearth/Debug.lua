@@ -81,22 +81,18 @@ QH:RegisterCommand("live", "toggle printing each event as it is recorded", funct
     QH:Print("Live event printing " .. (QH.debugLive and "ON" or "OFF"))
 end)
 
-StaticPopupDialogs["QUILLANDHEARTH_CLEAR"] = {
-    text = "Delete ALL recorded Quill & Hearth events for this character?",
-    button1 = YES,
-    button2 = NO,
-    OnAccept = function()
-        if QH.char then
-            QH.char.events = {}
-            QH:Print("Events cleared.")
-        end
-    end,
-    timeout = 0,
-    hideOnEscape = true,
-}
-
 QH:RegisterCommand("clear", "debug: delete all recorded events for this character", function()
-    StaticPopup_Show("QUILLANDHEARTH_CLEAR")
+    QH:ShowConfirm({
+        text = "Delete ALL recorded Quill & Hearth events for this character?",
+        button1 = YES or "Yes",
+        button2 = NO or "No",
+        onAccept = function()
+            if QH.char then
+                QH.char.events = {}
+                QH:Print("Events cleared.")
+            end
+        end,
+    })
 end)
 
 local SIM_SCENARIOS = {

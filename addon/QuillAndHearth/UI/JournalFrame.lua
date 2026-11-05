@@ -165,19 +165,6 @@ local function SetStarLit(button, lit)
     end
 end
 
-StaticPopupDialogs["QUILLANDHEARTH_DELETE_ENTRY"] = {
-    text = "Delete \"%s\"?\n\nThe entry and the prompt it was written from will be lost for good. This can't be undone.",
-    button1 = DELETE or "Delete",
-    button2 = CANCEL,
-    OnAccept = function(_, data)
-        if data and data.id then QH:DeleteEntry(data.id) end
-    end,
-    showAlert = true,
-    timeout = 0,
-    whileDead = true,
-    hideOnEscape = true,
-}
-
 local function Tooltip(widget, title, text)
     widget:HookScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -203,7 +190,6 @@ function Journal:Build()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     if f.SetPortraitToAsset then f:SetPortraitToAsset(QH.ICON or "Interface\\Icons\\INV_Misc_Book_09") end
-    table.insert(UISpecialFrames, "QuillAndHearthJournal")
     f:Hide()
     self.frame = f
 
@@ -269,7 +255,14 @@ function Journal:Build()
     end)
     self.deleteButton:SetScript("OnClick", function()
         local e = self.selectedEntry
-        if e then StaticPopup_Show("QUILLANDHEARTH_DELETE_ENTRY", e.title or "Untitled", nil, { id = e.id }) end
+        if not e then return end
+        local id = e.id
+        QH:ShowConfirm({
+            text = ('Delete "%s"?\n\nThe entry and the prompt it was written from will be lost for good. This can\'t be undone.'):format(e.title or "Untitled"),
+            button1 = DELETE or "Delete",
+            button2 = CANCEL or "Cancel",
+            onAccept = function() QH:DeleteEntry(id) end,
+        })
     end)
     self.editButton:SetScript("OnClick", function()
         if self.selectedEntry then QH.EditDialog:Open(self.selectedEntry) end
@@ -443,7 +436,8 @@ function Journal:Build()
         end
     end)
     for _, ev in ipairs({ "PLAYER_UPDATE_RESTING", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA", "UNIT_AURA", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED" }) do
-        QH:On(ev, function()
+        QH:On(ev, function(_, unit)
+            if ev == "UNIT_AURA" and unit ~= "player" then return end
             if self.frame and self.frame:IsShown() then self:RefreshRestButton() end
         end)
     end

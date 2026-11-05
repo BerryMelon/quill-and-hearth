@@ -218,19 +218,12 @@ end)
 -- Travel: flight paths, hearthstone, new home
 ---------------------------------------------------------------------------
 local onTaxi = false
-local taxiDestination
-
-if type(TakeTaxiNode) == "function" then
-    hooksecurefunc("TakeTaxiNode", function(index)
-        taxiDestination = TaxiNodeName and TaxiNodeName(index) or nil
-    end)
-end
 
 QH:On("PLAYER_CONTROL_LOST", function()
     C_Timer.After(0.5, function()
         if UnitOnTaxi("player") and not onTaxi then
             onTaxi = true
-            QH:Push("flight_start", { destination = taxiDestination })
+            QH:Push("flight_start", {})
         end
     end)
 end)
@@ -238,8 +231,7 @@ end)
 QH:On("PLAYER_CONTROL_GAINED", function()
     if onTaxi then
         onTaxi = false
-        QH:Push("flight_end", { destination = taxiDestination })
-        taxiDestination = nil
+        QH:Push("flight_end", {})
     end
 end)
 
@@ -458,6 +450,20 @@ for _, key in ipairs({ "LOOT_ITEM_SELF_MULTIPLE", "LOOT_ITEM_SELF", "LOOT_ITEM_P
     if p then table.insert(LOOT_PATTERNS, p) end
 end
 local QUALITY_NAMES = { [3] = "rare", [4] = "epic", [5] = "legendary", [6] = "artifact" }
+local COLOR_QUALITY = { ["0070dd"] = 3, ["a335ee"] = 4, ["ff8000"] = 5, ["e6cc80"] = 6 }
+
+local function LinkQuality(link)
+    local iq = tonumber(link:match("|cnIQ(%d):"))
+    if iq then return iq end
+    local hex = link:match("|cff(%x%x%x%x%x%x)")
+    if hex and COLOR_QUALITY[hex:lower()] then return COLOR_QUALITY[hex:lower()] end
+    local itemID = tonumber(link:match("|Hitem:(%d+)"))
+    if itemID and C_Item and C_Item.GetItemQualityByID then
+        local ok, q = pcall(C_Item.GetItemQualityByID, itemID)
+        if ok and type(q) == "number" then return q end
+    end
+    return nil
+end
 
 QH:On("CHAT_MSG_LOOT", function(_, msg)
     msg = Safe(msg)
@@ -465,9 +471,8 @@ QH:On("CHAT_MSG_LOOT", function(_, msg)
     for _, pattern in ipairs(LOOT_PATTERNS) do
         local link = msg:match(pattern)
         if link then
-            local itemString = link:match("|H(item:[^|]+)|h")
             local name = link:match("|h%[(.-)%]|h")
-            local quality = itemString and C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemString)
+            local quality = LinkQuality(link)
             if name and quality and quality >= 3 then
                 QH:Push("loot", { item = name, quality = QUALITY_NAMES[quality] or "rare", qualityNum = quality })
             end

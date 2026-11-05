@@ -24,7 +24,6 @@ local function CreateTextDialog(name, title, width, height)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     if f.SetTitle then f:SetTitle(title) end
     if f.SetPortraitToAsset then f:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Book_09") end
-    table.insert(UISpecialFrames, name)
     f:Hide()
 
     local inset = f.Inset or f
@@ -196,7 +195,6 @@ local function BuildWriteDialog()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     if f.SetPortraitToAsset then f:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Book_09") end
-    table.insert(UISpecialFrames, "QuillAndHearthWriteDialog")
     f:Hide()
     local inset = f.Inset or f
 

@@ -32,7 +32,6 @@ local function BuildMenu()
     f:SetToplevel(true)
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
-    table.insert(UISpecialFrames, "QuillAndHearthMenu")
     f:Hide()
 
     -- Click anywhere outside the menu to close it.

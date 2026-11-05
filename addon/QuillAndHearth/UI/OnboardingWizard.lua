@@ -121,7 +121,6 @@ function Wizard:Build()
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     if f.SetTitle then f:SetTitle("Quill & Hearth") end
     if f.SetPortraitToAsset then f:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Book_09") end
-    table.insert(UISpecialFrames, "QuillAndHearthWizard") -- Escape closes it
     f:Hide()
     self.frame = f
 
