@@ -40,12 +40,10 @@ local function Build()
         end
     end)
     f.rewrite:SetScript("OnEnter", function(btn)
-        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
-        GameTooltip:SetText("Rewrite with AI")
-        GameTooltip:AddLine("Get a new version of this entry from any AI chat, using the prompt it was written from.", 1, 1, 1, true)
-        GameTooltip:Show()
+        QH:ShowTooltip(btn, "ANCHOR_TOP", "Rewrite with AI",
+            "Get a new version of this entry from any AI chat, using the prompt it was written from.")
     end)
-    f.rewrite:SetScript("OnLeave", GameTooltip_Hide)
+    f.rewrite:SetScript("OnLeave", function() QH:HideTooltip() end)
 
     f.note:ClearAllPoints()
     f.note:SetPoint("LEFT", f.rewrite, "RIGHT", 10, 0)

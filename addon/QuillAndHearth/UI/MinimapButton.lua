@@ -6,22 +6,26 @@ local Journal = QH.Journal
 ---------------------------------------------------------------------------
 -- Tooltip + options menu (shared by the minimap button and the addon compartment)
 ---------------------------------------------------------------------------
-local function FillTooltip(tooltip)
-    tooltip:SetText("Quill & Hearth")
+local function TooltipBody(includeDrag)
+    local lines = {}
     if QH.char then
         local unwritten, moments = QH:GetPendingInfo()
         local count = #QH:GetEntries()
-        tooltip:AddLine(("%d journal %s"):format(count, count == 1 and "entry" or "entries"), 1, 1, 1)
+        table.insert(lines, ("|cffffffff%d journal %s|r"):format(count, count == 1 and "entry" or "entries"))
         if unwritten > 0 then
-            tooltip:AddLine("An unwritten page is waiting.", 1, 0.82, 0)
+            table.insert(lines, "|cffffd100An unwritten page is waiting.|r")
         end
         if moments > 0 then
-            tooltip:AddLine(("%d %s since your last rest"):format(moments, moments == 1 and "moment" or "moments"), 0.8, 0.8, 0.8)
+            table.insert(lines, ("%d %s since your last rest"):format(moments, moments == 1 and "moment" or "moments"))
         end
     end
-    tooltip:AddLine(" ")
-    tooltip:AddLine("|cffffd100Left-click|r  open your journal", 0.8, 0.8, 0.8)
-    tooltip:AddLine("|cffffd100Right-click|r  rest, character profile", 0.8, 0.8, 0.8)
+    table.insert(lines, " ")
+    table.insert(lines, "|cffffd100Left-click|r  open your journal")
+    table.insert(lines, "|cffffd100Right-click|r  rest, character profile")
+    if includeDrag then
+        table.insert(lines, "|cffffd100Drag|r  move this button")
+    end
+    return table.concat(lines, "\n")
 end
 
 local menuFrame
@@ -142,16 +146,11 @@ function QH:ShowOptionsMenu(owner, anchorUp)
                 end)
                 if item.tipTitle then
                     row:SetScript("OnEnter", function(self)
-                        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-                        GameTooltip:SetText(item.tipTitle)
-                        if item.tipBody then
-                            local r, g, b = 1, 1, 1
-                            if not restKind then r, g, b = 1, 0.5, 0.25 end
-                            GameTooltip:AddLine(item.tipBody, r, g, b, true)
-                        end
-                        GameTooltip:Show()
+                        local r, g, b = 1, 1, 1
+                        if not restKind then r, g, b = 1, 0.5, 0.25 end
+                        QH:ShowTooltip(self, "ANCHOR_LEFT", item.tipTitle, item.tipBody, r, g, b)
                     end)
-                    row:SetScript("OnLeave", GameTooltip_Hide)
+                    row:SetScript("OnLeave", function() QH:HideTooltip() end)
                 else
                     row:SetScript("OnEnter", nil)
                     row:SetScript("OnLeave", nil)
@@ -239,7 +238,7 @@ local function CreateMinimapButton()
     border:SetPoint("TOPLEFT")
 
     button:SetScript("OnClick", function(self, mouseButton)
-        GameTooltip:Hide()
+        QH:HideTooltip()
         if mouseButton == "RightButton" then
             QH:ShowOptionsMenu(self)
         else
@@ -247,19 +246,16 @@ local function CreateMinimapButton()
         end
     end)
     button:SetScript("OnDragStart", function(self)
-        GameTooltip:Hide()
+        QH:HideTooltip()
         self:SetScript("OnUpdate", OnDragUpdate)
     end)
     button:SetScript("OnDragStop", function(self)
         self:SetScript("OnUpdate", nil)
     end)
     button:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        FillTooltip(GameTooltip)
-        GameTooltip:AddLine("|cffffd100Drag|r  move this button", 0.8, 0.8, 0.8)
-        GameTooltip:Show()
+        QH:ShowTooltip(self, "ANCHOR_LEFT", "Quill & Hearth", TooltipBody(true), 0.82, 0.82, 0.82)
     end)
-    button:SetScript("OnLeave", GameTooltip_Hide)
+    button:SetScript("OnLeave", function() QH:HideTooltip() end)
 
     UpdatePosition()
 end
@@ -298,13 +294,11 @@ function QuillAndHearth_OnCompartmentClick(_, inputData, menuFrame)
 end
 
 function QuillAndHearth_OnCompartmentEnter(_, menuButton)
-    GameTooltip:SetOwner(type(menuButton) == "table" and menuButton or UIParent, "ANCHOR_LEFT")
-    FillTooltip(GameTooltip)
-    GameTooltip:Show()
+    QH:ShowTooltip(type(menuButton) == "table" and menuButton or UIParent, "ANCHOR_LEFT", "Quill & Hearth", TooltipBody(false), 0.82, 0.82, 0.82)
 end
 
 function QuillAndHearth_OnCompartmentLeave()
-    GameTooltip:Hide()
+    QH:HideTooltip()
 end
 
 ---------------------------------------------------------------------------

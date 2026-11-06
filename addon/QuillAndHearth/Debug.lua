@@ -50,6 +50,22 @@ local function Describe(e)
     return t
 end
 
+local blockedActions = {}
+
+local function RecordBlocked(event, addonName, funcName)
+    table.insert(blockedActions, {
+        event = event,
+        addon = tostring(QH.Safe(addonName) or "?"),
+        func = tostring(QH.Safe(funcName) or "?"),
+    })
+    if #blockedActions > 10 then table.remove(blockedActions, 1) end
+    if QH.debugLive then
+        QH:Print(("|cffff6060%s|r: addon=%s func=%s"):format(event, blockedActions[#blockedActions].addon, blockedActions[#blockedActions].func))
+    end
+end
+QH:On("ADDON_ACTION_BLOCKED", RecordBlocked)
+QH:On("ADDON_ACTION_FORBIDDEN", RecordBlocked)
+
 QH:RegisterCommand("status", "show how many moments are recorded", function()
     local c = QH.char
     if not c then return end
@@ -61,6 +77,12 @@ QH:RegisterCommand("status", "show how many moments are recorded", function()
     QH:Print(("%d events stored, %d since the last rest. Next seq: %d."):format(#c.events, sinceRest, c.nextSeq))
     if QH.prunedOnLoad then
         QH:Print(("%d already-journaled events were cleaned up on load."):format(QH.prunedOnLoad))
+    end
+    if #blockedActions > 0 then
+        QH:Print(("Blocked actions this session (%d):"):format(#blockedActions))
+        for _, b in ipairs(blockedActions) do
+            print(("  |cffff8080%s|r -> addon: |cffffffff%s|r, func: |cffffffff%s|r"):format(b.event, b.addon, b.func))
+        end
     end
 end)
 

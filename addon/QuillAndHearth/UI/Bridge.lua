@@ -241,13 +241,10 @@ local function BuildWriteDialog()
         f.promptBox:HighlightText()
     end)
     f.fullToggle:SetScript("OnEnter", function(cb)
-        GameTooltip:SetOwner(cb, "ANCHOR_TOP")
-        GameTooltip:SetText("AI Chat Session")
-        GameTooltip:AddLine("Unchecked: sends only tonight's new moments (best when pasting into the same ongoing AI chat).", 1, 1, 1, true)
-        GameTooltip:AddLine("Checked: includes the full rules, uncut character sheet, and story so far (use for a brand-new AI chat or if the AI forgot your character).", 0.9, 0.82, 0.6, true)
-        GameTooltip:Show()
+        QH:ShowTooltip(cb, "ANCHOR_TOP", "AI Chat Session",
+            "Unchecked: sends only tonight's new moments (best when pasting into the same ongoing AI chat).\n\n|cffe6d199Checked: includes the full rules, uncut character sheet, and story so far (use for a brand-new AI chat or if the AI forgot your character).|r")
     end)
-    f.fullToggle:SetScript("OnLeave", GameTooltip_Hide)
+    f.fullToggle:SetScript("OnLeave", function() QH:HideTooltip() end)
 
     -- Read-only prompt that stays selected.
     f.promptBox:SetScript("OnTextChanged", function(box, userInput)

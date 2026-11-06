@@ -124,6 +124,82 @@ function QH:ShowConfirm(spec)
 end
 
 ---------------------------------------------------------------------------
+-- Zero-taint tooltip (avoids touching Blizzard's shared GameTooltip)
+---------------------------------------------------------------------------
+local tipFrame
+
+local function BuildTooltipFrame()
+    local f = CreateFrame("Frame", "QuillAndHearthTooltip", UIParent)
+    f:SetFrameStrata("TOOLTIP")
+    f:SetToplevel(true)
+    f:SetClampedToScreen(true)
+    f:Hide()
+
+    local border = f:CreateTexture(nil, "BACKGROUND")
+    border:SetAllPoints()
+    border:SetColorTexture(0.38, 0.30, 0.16, 0.96)
+
+    local bg = f:CreateTexture(nil, "BORDER")
+    bg:SetPoint("TOPLEFT", 1, -1)
+    bg:SetPoint("BOTTOMRIGHT", -1, 1)
+    bg:SetColorTexture(0.06, 0.05, 0.04, 0.96)
+
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.title:SetPoint("TOPLEFT", 10, -8)
+    f.title:SetJustifyH("LEFT")
+
+    f.body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.body:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)
+    f.body:SetJustifyH("LEFT")
+    f.body:SetSpacing(2)
+    return f
+end
+
+function QH:ShowTooltip(owner, anchor, title, body, r, g, b)
+    if not title or title == "" then return end
+    tipFrame = tipFrame or BuildTooltipFrame()
+    local f = tipFrame
+    f.title:SetWidth(0)
+    f.title:SetText(title)
+    local titleW = math.min(280, f.title:GetStringWidth())
+    f.title:SetWidth(titleW)
+
+    local w, h = titleW, f.title:GetStringHeight()
+    if body and body ~= "" then
+        f.body:SetWidth(0)
+        f.body:SetText(body)
+        f.body:SetTextColor(r or 1, g or 1, b or 1)
+        local bodyW = math.min(280, math.max(titleW, f.body:GetStringWidth()))
+        f.body:SetWidth(bodyW)
+        f.body:Show()
+        w = math.max(w, bodyW)
+        h = h + 4 + f.body:GetStringHeight()
+    else
+        f.body:SetText("")
+        f.body:Hide()
+    end
+
+    f:SetSize(w + 20, h + 16)
+    f:ClearAllPoints()
+    if owner and owner ~= UIParent then
+        if anchor == "ANCHOR_LEFT" then
+            f:SetPoint("BOTTOMRIGHT", owner, "TOPLEFT", -4, 4)
+        elseif anchor == "ANCHOR_RIGHT" then
+            f:SetPoint("BOTTOMLEFT", owner, "TOPRIGHT", 4, 4)
+        else
+            f:SetPoint("BOTTOM", owner, "TOP", 0, 6)
+        end
+    else
+        f:SetPoint("CENTER")
+    end
+    f:Show()
+end
+
+function QH:HideTooltip()
+    if tipFrame then tipFrame:Hide() end
+end
+
+---------------------------------------------------------------------------
 -- Event dispatch (WoW events + internal messages)
 ---------------------------------------------------------------------------
 local frame = CreateFrame("Frame")

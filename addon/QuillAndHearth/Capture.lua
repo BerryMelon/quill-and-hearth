@@ -241,7 +241,7 @@ local IGNORED_CASTS = {
     ["Refreshment"] = true, ["First Aid"] = true, ["Cooking"] = true, ["Basic Campfire"] = true,
     ["Campfire"] = true, ["Fishing"] = true, ["Gardening"] = true, ["Herbalism"] = true,
     ["Herbalism Skill"] = true, ["Herb Gathering"] = true, ["Mining"] = true, ["Mining Skill"] = true,
-    ["Skinning"] = true, ["Attack"] = true, ["Auto Attack"] = true, ["Shoot"] = true, ["Throw"] = true,
+    ["Skinning"] = true, ["Attack"] = true, ["Auto Attack"] = true, ["Auto Shot"] = true, ["Shoot"] = true, ["Throw"] = true,
 }
 
 local function IsAbilityCast(name)

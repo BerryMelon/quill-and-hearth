@@ -167,13 +167,11 @@ end
 
 local function Tooltip(widget, title, text)
     widget:HookScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText(type(title) == "function" and title() or title)
+        local t = type(title) == "function" and title() or title
         local body = type(text) == "function" and text() or text
-        if body then GameTooltip:AddLine(body, 1, 1, 1, true) end
-        GameTooltip:Show()
+        QH:ShowTooltip(self, "ANCHOR_TOP", t, body)
     end)
-    widget:HookScript("OnLeave", GameTooltip_Hide)
+    widget:HookScript("OnLeave", function() QH:HideTooltip() end)
 end
 
 function Journal:Build()
@@ -925,7 +923,6 @@ function Journal:Open(opts)
     if opts and opts.ritual and QH:GetSetting("ritual") and not wasShown then
         if PlaySound and SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_OPEN then PlaySound(SOUNDKIT.IG_SPELLBOOK_OPEN) end
         if opts.emote ~= false and not InCombatLockdown() then
-            if DoEmote then pcall(DoEmote, "SIT") end
             if QH:GetSetting("ritualEmote") and DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
                 local d = self.pending and self.pending.digest
                 local restKind = (d and d.restKind) or QH:GetRestKind()
