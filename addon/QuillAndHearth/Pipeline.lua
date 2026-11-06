@@ -326,7 +326,7 @@ function P.BuildDigest(sittings, startDay, hooks)
                     m.title = e.foe
                     m.foeKind = e.kind
                 elseif e.type == "spell_learned" then
-                    m.kind = "learned a new ability"
+                    m.kind = "learned a new technique (describe naturally in-world without the literal game skill name)"
                     m.title = e.spell
                 elseif e.type == "money" then
                     if e.kind == "milestone" then
@@ -517,25 +517,24 @@ end
 local RULES = [[You are ghost-writing the private journal of a World of Warcraft character. Write ONLY as the character, in first person, past tense, as if they are writing tonight before sleep.
 
 Rules:
-- Stay in character and in the world. Never mention game mechanics: no "quest", "XP", "level", "loot", "NPC", "respawn", "server", "addon". Levels become growing stronger; quests become tasks, errands or requests; deaths become being struck down and waking at a spirit healer, or a narrow escape.
-- Match the character's voice: a terse soldier writes short and blunt; a poetic scholar writes lyrically.
-- Organise the entry by storyline, not strictly by the order things happened.
-- Make the journey believable: when the character moved between distant places, write the travel and WHY they went. Respect the day numbers ("the next morning", "after four days at sea").
-- Give KEY moments real weight and connect them to the character's fears, goals and past when a moment touches them. MINOR moments get a sentence at most. Small errands get at most one line.
+- Stay in character and in the world. Never mention game mechanics: no "quest", "XP", "level", "loot", "NPC", "respawn", "server", "addon". Levels become growing stronger; quests become tasks, contracts, or requests; deaths become being struck down and waking at a spirit healer, or a narrow escape.
+- Match the character's voice, temperament, and background.
+- NEVER write a quest-by-quest checklist or summarize every task in one or two dry sentences. Instead, build the entry around ONE or TWO centerpiece moments and elaborate on them deeply and imaginatively — bring out the atmosphere, weather, sensory details, tension, dialogue or personality of the people met, and the character's inner thoughts.
+- Prioritize [KEY] moments and personal notes for your centerpiece scenes, connecting them to the character's fears, goals, and past. If a day has no major [KEY] events and is mostly [MINOR] tasks or errands, pick the ONE or TWO most interesting or atmospheric minor tasks and elevate them into full, vivid scenes. Fold the remaining minor errands into a brief passing mention, or leave out trivial ones entirely, so the journal reads like an engaging chapter of a novel rather than an errand log.
 - Personal notes are the player's own words about their character: always include every one, faithfully and prominently, retold in the character's voice.
-- Stay within the length limit. If there is too much to tell, leave out MINOR moments and errands entirely rather than listing them; KEY moments and personal notes come first.
-- Only write major events (tasks, journeys, milestones, companions) that actually happened. A task marked "NOT finished yet" was only accepted: write about the request or the plan, never as if it were done.
+- Keep the plot anchored to what actually happened (do not invent major plot twists, bosses, or companions that aren't in the log, and treat any task marked "NOT finished yet" as an open request or plan rather than a completed feat), but use your creativity to dramatize the scenes, surroundings, and encounters around those events.
 - Retell quest story text in the character's own words; never copy it verbatim.
+- Make the journey believable: when the character moved between distant places, write the travel and WHY they went. Respect the day numbers ("the next morning", "after four days at sea").
 - Companions may be named with their class as their calling, but invent nothing about them. People who asked for help ("Asked by") may be named.
-- If the entry feels too short, quiet, or bland, invent a few small, unexpected slice-of-life moments that fit the zone, class, weather, or resting place (such as a minor combat or travel hiccup, a fleeting encounter with a local or passerby, a small gear nuisance, or a sensory detail while writing) — as long as they do not affect the plot, contradict recorded events, or repeat earlier entries.
-- Respect the character's class and level. Describe fights and feats the way their class really fights, using the abilities listed under "Abilities used most" when given (a shaman calls lightning from the elements, a rogue strikes from the shadows, a priest channels the Light or the Shadow). Keep their power appropriate to their level: a young adventurer uses modest, early abilities, never the feats of a seasoned hero.
+- Weave in a few small, unexpected slice-of-life details that fit the zone, class, weather, or resting place (such as a minor travel or camp hiccup, a fleeting observation of locals or wildlife, a small gear or pet moment, or a sensory detail while writing) — as long as they do not contradict recorded events or repeat earlier entries.
+- Respect the character's class, weapons, and level, and describe combat and training creatively in natural prose — NEVER parrot exact game ability or spell names like a combat log (do not write literal skill names like "Arcane Shot", "Raptor Strike", "Wing Clip", or "Heroic Strike"). Use the character's class and recorded abilities only as inspiration for how they actually fight in the world (a hunter fights with bow or gun, blades, traps, and their beast — never hurling fireballs; a shaman calls on the elements; a rogue strikes from the shadows). Keep their power grounded in their level: a young adventurer relies on grit and modest fundamentals, never the feats of a seasoned champion.
 - If you can browse the web, you may look up the quests (by name or quest id), people, creatures and places on https://warcraft.wiki.gg/ for accurate lore details. Never contradict what is given here; if something isn't on the wiki (new content), rely on the text given.
 - %s No date line.]]
 
 P.LENGTH_RULES = {
-    short = "Keep it brief: about 80 words for a quiet night, up to about 250 words when many things happened.",
-    normal = "Length follows how much happened: about 150 words for a quiet night, up to about 1000 words when many things happened.",
-    long = "Write generously: about 300 words for a quiet night, up to about 1200 words when many things happened, with rich detail.",
+    short = "Keep it concise: about 150 to 350 words, focusing on the single most memorable scene of the day.",
+    normal = "Write a full, immersive entry: about 400 to 1000 words, developing the one or two centerpiece scenes across several rich paragraphs.",
+    long = "Write generously and at length: about 700 to 1600 words, with deep scene-building, atmosphere, and reflection.",
 }
 
 local FORMAT = [[Reply in EXACTLY this format, with nothing before or after it:
@@ -566,15 +565,12 @@ local function AppendMoments(out, meta, digest, opts)
     else
         line(("Covers days %d to %d."):format(digest.startDay, digest.endDay))
     end
-    if opts.mood then
-        line(("The character's mood tonight: %s. Let it colour the whole entry."):format(opts.mood))
-    end
     if digest.level then
         line(("The character is level %d%s."):format(digest.level,
             meta and meta.class and (" (" .. meta.class .. ")") or ""))
     end
     if digest.abilities and #digest.abilities > 0 then
-        line("Abilities used most since the last entry (times used): " .. table.concat(digest.abilities, ", "))
+        line("Combat style context (most-used game abilities — use ONLY as inspiration for natural fight choreography; do NOT write these exact skill names in the entry): " .. table.concat(digest.abilities, ", "))
     end
     if digest.reflections and #digest.reflections > 0 then
         line(("A milestone (%s): end the entry with a short, honest look back at who the character was when the journey began and who they are now."):format(table.concat(digest.reflections, "; ")))
@@ -586,7 +582,7 @@ local function AppendMoments(out, meta, digest, opts)
     end
     if #digest.threads > 0 then
         line()
-        line("STORYLINES:")
+        line("STORYLINES (choose 1 or 2 centerpiece moments to dramatize in depth; fold or skip the rest so it never reads like a quest checklist):")
         for _, thread in ipairs(digest.threads) do
             line("* " .. thread.name)
             for _, m in ipairs(thread.moments) do
@@ -603,7 +599,7 @@ local function AppendMoments(out, meta, digest, opts)
     end
     if #digest.collapsed > 0 then
         line()
-        line("MINOR ERRANDS (one line at most):")
+        line("OTHER SMALL ERRANDS (skip or fold into a brief passing mention):")
         for _, c in ipairs(digest.collapsed) do line("- " .. c) end
     end
 end
@@ -631,7 +627,7 @@ function P.BuildSetupPrompt(profile, meta, memory, previousTitles, opts)
     return table.concat(out, "\n")
 end
 
---- opts (all optional): { mood, length, people, session = true (short prompt for an active chat) }
+--- opts (all optional): { length, people, session = true (short prompt for an active chat) }
 function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
     opts = opts or {}
     local out = {}
@@ -640,7 +636,7 @@ function P.BuildPrompt(profile, meta, memory, digest, previousTitles, opts)
 
     if opts.session then
         local name = (profile and profile.name) or (meta and meta.name) or "the character"
-        line(("Write the next journal entry for %s in first person, past tense, using the character sheet and rules from earlier in this chat. (%s No date line.)"):format(name, lengthRule))
+        line(("Write the next journal entry for %s in first person, past tense, using the character sheet and rules from earlier in this chat. Focus on 1 or 2 centerpiece moments and elaborate on them imaginatively (if the log is mostly minor tasks, pick 1 or 2 interesting ones to dramatize into full scenes and fold or skip the rest — never write a quest-by-quest checklist). Describe combat creatively according to their class without using exact game ability names. (%s No date line.)"):format(name, lengthRule))
         line()
     else
         line(RULES:format(lengthRule))
@@ -667,7 +663,7 @@ function P.ShortenPrompt(fullPrompt, name)
     local idx = fullPrompt:find("\nPEOPLE MET BEFORE", 1, true)
         or fullPrompt:find("\nWHAT HAPPENED SINCE THE LAST ENTRY", 1, true)
     if not idx then return fullPrompt end
-    local header = ("Write this journal entry for %s in first person, past tense, using the character sheet and rules from earlier in this chat. (No date line.)\n"):format(name or "the character")
+    local header = ("Write this journal entry for %s in first person, past tense, using the character sheet and rules from earlier in this chat. Focus on 1 or 2 centerpiece moments and elaborate on them imaginatively (never write a quest-by-quest checklist), and describe combat creatively without using exact game ability names. (No date line.)\n"):format(name or "the character")
     return header .. fullPrompt:sub(idx)
 end
 

@@ -246,7 +246,7 @@ local IGNORED_CASTS = {
 
 local function IsAbilityCast(name)
     if type(name) ~= "string" or name == "" or IGNORED_CASTS[name] then return false end
-    if name:find("^Opening") or name:find("^Find ") or name:find(" Skill$") then return false end
+    if name:find("^Opening") or name:find("^Find ") or name:find(" Skill$") or name:find(" Bandage$") or name:find("^Shoot ") then return false end
     return true
 end
 

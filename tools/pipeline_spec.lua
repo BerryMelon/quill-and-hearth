@@ -146,7 +146,7 @@ test("Notes are always KEY moments and appear in the prompt", function()
     eq(note.importance, "KEY")
     local prompt = P.BuildPrompt(nil, { name = "Ari", race = "Human", class = "Warrior" }, "", d, {})
     assert(prompt:find('In their words: "I keep the letter from my sister'), "note not in prompt")
-    assert(prompt:find("leave out MINOR moments"), "length rule missing")
+    assert(prompt:find("ONE or TWO centerpiece moments", 1, true), "centerpiece rule missing")
 end)
 
 print(("%d Lua tests passed in total"):format(passed))
@@ -263,27 +263,28 @@ local function RichLog()
     return events
 end
 
-test("Prompt carries mood, time of day, reflections, givers and the length setting", function()
+test("Prompt carries time of day, reflections, givers, natural combat rules, and the length setting", function()
     local d = P.BuildDigest(P.FindSittings(RichLog(), 0), 1, {})
     eq(d.timeOfDay, "late at night")
     assert(#d.reflections >= 2, "level 10 and first death are milestones")
-    local prompt = P.BuildPrompt(nil, { name = "Fistnal" }, "", d, {}, { mood = "Weary", length = "short" })
+    local prompt = P.BuildPrompt(nil, { name = "Fistnal" }, "", d, {}, { length = "short" })
     assert(prompt:find("Fairbreeze Village, Eversong Woods, late at night", 1, true), "time of day")
-    assert(prompt:find("mood tonight: Weary", 1, true), "mood")
+    assert(not prompt:find("mood tonight", 1, true), "mood removed")
     assert(prompt:find("A milestone", 1, true), "reflection")
     assert(prompt:find("Asked by: Magister Landra", 1, true), "quest giver")
-    assert(prompt:find("Keep it brief", 1, true), "short length rule")
+    assert(prompt:find("Keep it concise", 1, true), "short length rule")
     assert(not prompt:find("%%s"), "no leftover format markers")
-    assert(prompt:find("Respect the character's class and level", 1, true), "class/level rule")
+    assert(prompt:find("Respect the character's class, weapons, and level", 1, true), "class/level rule")
+    assert(prompt:find("NEVER parrot exact game ability or spell names", 1, true), "natural combat rule")
     assert(prompt:find("warcraft.wiki.gg", 1, true), "wiki hint")
     assert(prompt:find("The character is level 10", 1, true), "level line")
-    assert(prompt:find("Abilities used most since the last entry (times used): Lightning Bolt (42), Earth Shock (18), Healing Wave (5)", 1, true), "abilities")
+    assert(prompt:find("Combat style context (most-used game abilities — use ONLY as inspiration for natural fight choreography; do NOT write these exact skill names in the entry): Lightning Bolt (42), Earth Shock (18), Healing Wave (5)", 1, true), "abilities")
     assert(prompt:find("(quest id 7)", 1, true), "quest id")
     for _, needle in ipairs({ '"Sunstrider Blade"', '"Silvermoon City"', "Tailoring to 75", '"Explore Eversong Woods"', "campfire" }) do
         assert(prompt:find(needle, 1, true), "missing " .. needle)
     end
     local long = P.BuildPrompt(nil, { name = "Fistnal" }, "", d, {}, { length = "long" })
-    assert(long:find("Write generously", 1, true))
+    assert(long:find("Write generously and at length", 1, true))
 end)
 
 test("Chat patterns built from Blizzard format strings", function()
@@ -313,6 +314,8 @@ test("Chat patterns built from Blizzard format strings", function()
     eq(C.IsAbilityCast("Drink"), false)
     eq(C.IsAbilityCast("Herbalism Skill"), false)
     eq(C.IsAbilityCast("Find Herbs"), false)
+    eq(C.IsAbilityCast("Linen Bandage"), false)
+    eq(C.IsAbilityCast("Shoot Bow"), false)
 end)
 
 do
@@ -363,15 +366,12 @@ do
         eq(W:FindEntry("c").favorite, true)
     end)
 
-    test("Mood is stored on the entry and cleared afterwards", function()
+    test("Entry metadata is stored on the entry", function()
         W.char.events = RichLog()
-        W:SetPendingMood("Hopeful")
         local pending = W:GetPendingWrite()
-        assert(pending.prompt:find("mood tonight: Hopeful", 1, true))
         local entry = W:SaveWrittenEntry(pending, "TITLE: Eversong\nENTRY:\nWords.\nMEMORY: m")
-        eq(entry.mood, "Hopeful")
         eq(entry.continent, "Eastern Kingdoms")
-        eq(W.char.state.pendingMood, nil)
+        eq(entry.level, 10)
     end)
 
     test("Markdown export with chapters, summaries and favourites", function()
@@ -431,13 +431,12 @@ do
         }
         W.char.events = events
         W.char.journal = nil
-        W:SetPendingMood("Weary")
         local pending = W:GetPendingWrite()
         local prompt = pending.prompt
         assert(prompt:find("indoors somewhere safe at The Broken Tusk, Orgrimmar, in the evening", 1, true), "indoors + evening")
         assert(prompt:find('slew a elite foe "Hogger"', 1, true), "notable foe in prompt")
         assert(prompt:find("was struck down by Defias Pillager (normal)", 1, true), "killer in prompt")
-        assert(prompt:find('learned a new ability "Ghost Wolf"', 1, true), "learned spell in prompt")
+        assert(prompt:find('learned a new technique (describe naturally in-world without the literal game skill name) "Ghost Wolf"', 1, true), "learned spell in prompt")
         assert(prompt:find('saved up "their first gold piece"', 1, true), "coin milestone in prompt")
         assert(prompt:find("spent 90 silver and was left with 4 silver", 1, true), "coin spend in prompt")
     end)
@@ -450,7 +449,6 @@ do
         W.char.events = events
         W.char.journal = nil
         W:SetAISessionStarted(false)
-        W:SetPendingMood("Hopeful")
 
         -- 1. Save Day 1 for later (no AI reply pasted yet).
         local pendingDay1 = W:GetPendingWrite()
@@ -458,7 +456,6 @@ do
         local day1 = W:SavePendingForLater(pendingDay1)
         assert(day1 and day1.unwritten == true, "Day 1 saved as unwritten")
         eq(day1.day, 1)
-        eq(day1.mood, "Hopeful")
         eq(W:GetPendingWrite(), nil, "live pending cleared after saving Day 1 for later")
         eq(W:GetFirstUnwrittenEntry().id, day1.id)
 
@@ -489,10 +486,8 @@ do
         assert(p2Err:find("Write Day 1 first", 1, true))
 
         -- Day 1's prompt IS available because it is the oldest unwritten entry.
-        W:SetEntryMood(day1.id, "Weary")
         local p1Prompts = W:GetUnwrittenEntryPrompts(day1.id)
         assert(p1Prompts and p1Prompts.fullPrompt:find("Day One Task", 1, true), "Day 1 prompt has Day 1 task")
-        assert(p1Prompts.fullPrompt:find("mood tonight: Weary", 1, true), "Day 1 prompt reflects updated mood")
 
         -- 4. Writing Day 1 with AI saves its title, body, and MEMORY, and unlocks Day 2!
         local writtenDay1 = W:SaveUnwrittenEntry(day1.id, "TITLE: The Boughs of Teldrassil\nENTRY:\nI rested in Dolanaar.\nMEMORY: Eminai completed her first task in Teldrassil and rested in Dolanaar.")
@@ -559,7 +554,7 @@ do
 
     test("Standing slice-of-life rule in setup and full prompts (no pre-scripted cue lists)", function()
         local setup = P.BuildSetupPrompt({ name = "Eminai", class = "Priest" }, { name = "Eminai", class = "Priest" }, "", {})
-        assert(setup:find("slice-of-life moments", 1, true), "setup prompt should contain the standing slice-of-life rule")
+        assert(setup:find("slice-of-life details", 1, true), "setup prompt should contain the standing slice-of-life rule")
 
         local quietSitting = {
             {
@@ -569,7 +564,7 @@ do
         }
         local qd = P.BuildDigest(quietSitting, 1, {})
         local fullPrompt = P.BuildPrompt(nil, { name = "Eminai" }, "", qd, {})
-        assert(fullPrompt:find("slice-of-life moments", 1, true), "full prompt should contain the standing slice-of-life rule")
+        assert(fullPrompt:find("slice-of-life details", 1, true), "full prompt should contain the standing slice-of-life rule")
         assert(not fullPrompt:find("SMALL SLICE-OF-LIFE MOMENTS", 1, true), "prompt should not inject pre-scripted slice-of-life cues")
 
         local sessionPrompt = P.BuildPrompt(nil, { name = "Eminai" }, "", qd, {}, { session = true })

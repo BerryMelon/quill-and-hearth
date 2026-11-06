@@ -5,7 +5,6 @@ local DEFAULTS = {
     textSize = "medium",   -- small | medium | large
     length = "normal",     -- short | normal | long (AI prompt)
     autoOpen = true,       -- open the journal on the unwritten page after resting / logging back in
-    moodPrompt = true,     -- offer mood choices on the unwritten page
     ritual = true,         -- book sound when the journal opens after a rest
     ritualEmote = true,    -- also show a context-aware journal emote in chat when resting to write
 }
@@ -88,7 +87,7 @@ end
 
 local function BuildWindow()
     local f = CreateFrame("Frame", "QuillAndHearthOptions", UIParent, "ButtonFrameTemplate")
-    f:SetSize(480, 440)
+    f:SetSize(480, 410)
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
@@ -117,16 +116,15 @@ local function BuildWindow()
     Choice(panel, "Entry length (AI)", "length", {
         { value = "short", label = "Short" }, { value = "normal", label = "Normal" }, { value = "long", label = "Long" },
     }, -132)
-    Checkbox(panel, "Ask how my character feels when I rest", "Offers mood choices on the unwritten page to set the tone of the entry.", "moodPrompt", -160)
 
-    Header(panel, "Resting", -204)
-    Checkbox(panel, "Open the journal when I rest", "After resting (or logging back in after a rest), the journal opens on the unwritten page.", "autoOpen", -226)
-    Checkbox(panel, "Writing ritual (book sound)", "Play the book-opening sound when resting to write.", "ritual", -254)
-    Checkbox(panel, "Show a journal emote in chat when resting", "Shows a context-aware journal emote (campfire, tavern, or mood) in your chat window when the writing ritual plays.", "ritualEmote", -282)
+    Header(panel, "Resting", -172)
+    Checkbox(panel, "Open the journal when I rest", "After resting (or logging back in after a rest), the journal opens on the unwritten page.", "autoOpen", -194)
+    Checkbox(panel, "Writing ritual (book sound)", "Play the book-opening sound when resting to write.", "ritual", -222)
+    Checkbox(panel, "Show a journal emote in chat when resting", "Shows a context-aware journal emote (campfire or tavern) in your chat window when the writing ritual plays.", "ritualEmote", -250)
 
-    Header(panel, "Other", -326)
+    Header(panel, "Other", -294)
     local minimap = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
-    minimap:SetPoint("TOPLEFT", 14, -348)
+    minimap:SetPoint("TOPLEFT", 14, -316)
     local mmText = minimap:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     mmText:SetPoint("LEFT", minimap, "RIGHT", 2, 0)
     mmText:SetText("Show the minimap button")

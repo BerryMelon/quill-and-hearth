@@ -11,7 +11,6 @@ local ENTRY_ROW, HEADER_ROW = 42, 30
 local INK = { 0.24, 0.15, 0.08 }      -- dark brown text on parchment
 local INK_SOFT = { 0.45, 0.32, 0.20 }
 local PENDING = "pending"
-local MOODS = { "Weary", "Triumphant", "Troubled", "Grieving", "Hopeful", "Content" }
 
 local RITUAL_EMOTES = {
     campfire = {
@@ -28,21 +27,10 @@ local RITUAL_EMOTES = {
         "opens a worn journal and begins to write.",
         "unclasps a leather-bound journal and begins to write.",
     },
-    mood = {
-        Weary = "sinks down with a long sigh, opens a worn journal, and begins to write.",
-        Triumphant = "opens a leather-bound journal with a quiet smile and begins to write.",
-        Troubled = "stares into the distance for a moment before opening a worn journal to write.",
-        Grieving = "opens a worn journal with a heavy heart and begins to write.",
-        Hopeful = "opens a leather-bound journal, eyes bright, and begins to write.",
-        Content = "settles in comfortably, opens a worn journal, and begins to write.",
-    },
 }
 
 --- Pick a context-aware /e emote for the writing ritual (I4).
-function QH:PickRitualEmote(restKind, mood, indoors, seed)
-    if mood and RITUAL_EMOTES.mood[mood] then
-        return RITUAL_EMOTES.mood[mood]
-    end
+function QH:PickRitualEmote(restKind, indoors, seed)
     local pool = (restKind == "campfire" and RITUAL_EMOTES.campfire)
         or (indoors and RITUAL_EMOTES.indoors)
         or RITUAL_EMOTES.default
@@ -322,33 +310,6 @@ function Journal:Build()
         self:LayoutPage()
     end)
 
-    -- Mood (B2), shown on the unwritten page
-    self.moodLabel = page:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    self.moodLabel:SetTextColor(INK[1], INK[2], INK[3])
-    self.moodLabel:SetText("Tonight I feel:")
-    self.moodButtons = {}
-    local prev
-    for _, mood in ipairs(MOODS) do
-        local b = SmallButton(page, mood, 78)
-        b:SetHeight(20)
-        if prev then b:SetPoint("LEFT", prev, "RIGHT", 2, 0) else b:SetPoint("LEFT", self.moodLabel, "RIGHT", 6, 0) end
-        b:SetScript("OnClick", function()
-            if self.selectedEntry and self.selectedEntry.unwritten then
-                local current = self.selectedEntry.mood
-                QH:SetEntryMood(self.selectedEntry.id, current ~= mood and mood or nil)
-                self:Refresh(self.selectedEntry.id)
-            else
-                local current = QH.char.state.pendingMood
-                QH:SetPendingMood(current ~= mood and mood or nil)
-                self:Refresh(PENDING)
-            end
-        end)
-        b.mood = mood
-        table.insert(self.moodButtons, b)
-        prev = b
-    end
-    self.moodLabel:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 30, 50)
-
     -- Bottom buttons (meaning depends on the page)
     self.primaryButton = SmallButton(page, "", 160)
     self.primaryButton:SetHeight(24)
@@ -429,7 +390,7 @@ function Journal:Build()
         if self.frame:IsShown() then self:Refresh(PENDING) end
     end)
     QH:Listen("SETTING_CHANGED", function(key)
-        if self.frame:IsShown() and (key == "textSize" or key == "moodPrompt" or key == "length") then
+        if self.frame:IsShown() and (key == "textSize" or key == "length") then
             self:Refresh(self.selected)
         end
     end)
@@ -611,7 +572,7 @@ function Journal:LayoutPage()
 end
 
 --- Show text on the page. buttons: { primary = {label, action, tip}, secondary = {...} }; tools: show the
---- read/edit/hide/favourite buttons; mood: show the mood row.
+--- edit/favourite/delete buttons.
 function Journal:ShowPage(day, title, place, body, opts)
     opts = opts or {}
     self:ApplyFonts()
@@ -623,13 +584,6 @@ function Journal:ShowPage(day, title, place, body, opts)
     self.editButton:SetShown(opts.tools == true)
     self.favButton:SetShown(opts.tools == true)
     self.deleteButton:SetShown(opts.tools == true or opts.deleteOnly == true)
-    local moodShown = opts.mood == true
-    self.moodLabel:SetShown(moodShown)
-    local current = (self.selectedEntry and self.selectedEntry.unwritten) and self.selectedEntry.mood or QH.char.state.pendingMood
-    for _, b in ipairs(self.moodButtons) do
-        b:SetShown(moodShown)
-        if b.mood == current then b:LockHighlight() else b:UnlockHighlight() end
-    end
 
     local function setup(button, spec, which)
         if spec then
@@ -669,7 +623,6 @@ function Journal:ShowPage(day, title, place, body, opts)
 
     local bottom = 16
     if opts.primary or opts.secondary or nav then bottom = 48 end
-    if moodShown then bottom = 78 end
     self.scroll:SetPoint("BOTTOMRIGHT", self.page, "BOTTOMRIGHT", -38, bottom)
     self.scroll:SetPoint("TOPLEFT", self.page, "TOPLEFT", 30, (opts.tools or opts.deleteOnly) and -40 or -22)
     self:LayoutPage()
@@ -722,7 +675,6 @@ function Journal:ShowPendingPage()
         body = body .. ("\n\n|cff5a3a1aEarlier page still unwritten:|r %s was saved for later and hasn't been written with AI yet. Because each day's prompt needs the story so far from the previous day, write %s first — or save today's moments for later."):format(firstLabel, firstLabel)
         self:ShowPage(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
             PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, {
-                mood = QH:GetSetting("moodPrompt"),
                 primary = { "Go to " .. firstLabel, function() self:Select(blockedBy.id) end,
                     { "Write " .. firstLabel .. " first", "Each day builds on the story so far. Write your earlier saved day with AI first, and this page will unlock." } },
                 secondary = saveSpec,
@@ -734,7 +686,6 @@ function Journal:ShowPendingPage()
         .. "|cff5a3a1aSave for later|r seals today's moments into your journal so you can keep playing and write this entry with AI whenever you're ready."
     self:ShowPage(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
         PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, {
-            mood = QH:GetSetting("moodPrompt"),
             primary = { "Write with AI", function() QH.Bridge:Show(self.job) end,
                 { "Write with AI", "Copy the prompt into any AI chat, then paste the reply. All in one window." } },
             secondary = saveSpec,
@@ -758,7 +709,6 @@ end
 function Journal:ShowEntryPage(e)
     local notes = {}
     if e.level then table.insert(notes, ("level %d"):format(e.level)) end
-    if e.mood then table.insert(notes, e.mood:lower()) end
     if e.unwritten then table.insert(notes, "saved for later") end
     if e.rewrittenAt then table.insert(notes, "rewritten") end
     if e.editedAt then table.insert(notes, "edited") end
@@ -787,7 +737,6 @@ function Journal:ShowEntryPage(e)
             self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, body, {
                 deleteOnly = true,
                 nav = nav,
-                mood = QH:GetSetting("moodPrompt"),
                 primary = { "Write with AI", function()
                     local job, err = QH.Bridge.UnwrittenEntryJob(e)
                     if job then QH.Bridge:Show(job) elseif err then QH:Print(err) end
@@ -927,7 +876,7 @@ function Journal:Open(opts)
                 local d = self.pending and self.pending.digest
                 local restKind = (d and d.restKind) or QH:GetRestKind()
                 local indoors = (d and d.indoors) or (IsIndoors and QH.Safe(IsIndoors()))
-                local emote = QH:PickRitualEmote(restKind, state.pendingMood, indoors)
+                local emote = QH:PickRitualEmote(restKind, indoors)
                 local who = QH.Safe(UnitName("player")) or name or "Your character"
                 DEFAULT_CHAT_FRAME:AddMessage(("|cffff8040%s %s|r"):format(who, emote))
             end

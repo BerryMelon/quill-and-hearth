@@ -70,24 +70,11 @@ local function NextDay()
     return day
 end
 
---- Options for tonight's writing: the mood picked on the unwritten page, and the length setting.
+--- Options for tonight's writing: the length setting.
 function QH:GetWriteOptions()
-    local ask = self:GetSetting("moodPrompt")
     return {
-        mood = ask and self.char.state.pendingMood or nil,
         length = self:GetSetting("length"),
     }
-end
-
-function QH:SetPendingMood(mood)
-    self.char.state.pendingMood = mood
-end
-
-function QH:SetEntryMood(id, mood)
-    local target = self:FindEntry(id)
-    if not target or not target.unwritten then return end
-    target.mood = mood
-    if target.opts then target.opts.mood = mood end
 end
 
 function QH:IsAISessionStarted()
@@ -212,7 +199,6 @@ local function StoreEntry(pending, title, body, memory, source)
         continent = rest.continent,
         restKind = rest.kind,
         level = rest.level,
-        mood = pending.opts and pending.opts.mood or nil,
         t = rest.t,
         source = source,
         prompt = pending.fullPrompt or pending.prompt,
@@ -221,7 +207,6 @@ local function StoreEntry(pending, title, body, memory, source)
     j.processedThrough = rest.seq
     j.nextDay = d.endDay + 1
     if memory then j.memory = memory end
-    QH.char.state.pendingMood = nil
     QH:Send("ENTRY_WRITTEN", entry)
     return entry
 end
@@ -252,13 +237,11 @@ function QH:SavePendingForLater(pending)
         continent = rest.continent,
         restKind = rest.kind,
         level = rest.level,
-        mood = pending.opts and pending.opts.mood or nil,
         t = rest.t,
     }
     table.insert(j.entries, entry)
     j.processedThrough = rest.seq
     j.nextDay = d.endDay + 1
-    self.char.state.pendingMood = nil
     self:Send("ENTRY_WRITTEN", entry)
     return entry
 end
@@ -278,9 +261,7 @@ function QH:GetUnwrittenEntryPrompts(id)
 
     local profile = self:GetProfile()
     local titles = RecentTitles(self:GetEntries(), target.id)
-    local askMood = self:GetSetting("moodPrompt")
     local opts = {
-        mood = askMood and target.mood or nil,
         length = self:GetSetting("length"),
         people = target.people,
     }
