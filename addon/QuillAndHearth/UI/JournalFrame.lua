@@ -651,6 +651,20 @@ local function SummarizeDigest(d)
     return table.concat(lines, "\n")
 end
 
+local function BulkSpec(batch)
+    if not batch or (batch.count or 0) < 2 then return nil end
+    local label = batch.totalUnwritten > batch.count
+        and ("Write next %d with AI"):format(batch.count)
+        or ("Write all %d with AI"):format(batch.count)
+    local tipBody = batch.totalUnwritten > batch.count
+        and ("Batch the next %d unwritten days into one chronological AI prompt (out of %d waiting) so each entry stays rich and detailed."):format(batch.count, batch.totalUnwritten)
+        or ("Write all %d unwritten days in chronological order using a single AI prompt and reply."):format(batch.count)
+    return { label, function()
+        local job, err = QH.Bridge.BulkJob(batch)
+        if job then QH.Bridge:Show(job) elseif err then QH:Print(err) end
+    end, { label, tipBody } }
+end
+
 function Journal:ShowPendingPage()
     local d = self.pending.digest
     local blockedBy = self.pending.blockedBy
@@ -672,10 +686,12 @@ function Journal:ShowPendingPage()
 
     if blockedBy then
         local firstLabel = DayLabel(blockedBy.day, blockedBy.dayEnd)
-        body = body .. ("\n\n|cff5a3a1aEarlier page still unwritten:|r %s was saved for later and hasn't been written with AI yet. Because each day's prompt needs the story so far from the previous day, write %s first — or save today's moments for later."):format(firstLabel, firstLabel)
+        local batch = QH:GetUnwrittenBatch()
+        local bulk = BulkSpec(batch)
+        body = body .. ("\n\n|cff5a3a1aEarlier page still unwritten:|r %s was saved for later. You can write your unwritten days together in one batch with AI now, or save today's moments for later."):format(firstLabel)
         self:ShowPage(DayLabel(d.startDay, d.endDay) .. nights, "An unwritten page",
             PlaceText(d.restKind, d.lastRest.zone, d.lastRest.subzone), body, {
-                primary = { "Go to " .. firstLabel, function() self:Select(blockedBy.id) end,
+                primary = bulk or { "Go to " .. firstLabel, function() self:Select(blockedBy.id) end,
                     { "Write " .. firstLabel .. " first", "Each day builds on the story so far. Write your earlier saved day with AI first, and this page will unlock." } },
                 secondary = saveSpec,
             })
@@ -723,17 +739,26 @@ function Journal:ShowEntryPage(e)
             body = body .. "\n\n|cff5a3a1aA milestone:|r " .. table.concat(d.reflections, ", ") .. ". The entry will look back on how far you've come."
         end
         local firstUnwritten = QH:GetFirstUnwrittenEntry()
+        local batch = QH:GetUnwrittenBatch()
+        local bulk = BulkSpec(batch)
         if firstUnwritten and firstUnwritten.id ~= e.id then
             local firstLabel = DayLabel(firstUnwritten.day, firstUnwritten.dayEnd)
-            body = body .. ("\n\n|cff5a3a1aWaiting on %s:|r Write %s with AI first — its reply updates the story so far needed to generate this day's prompt."):format(firstLabel, firstLabel)
+            body = body .. ("\n\n|cff5a3a1aEarlier page still unwritten:|r %s is ahead of this day in your journal. Use |cff5a3a1a%s|r below to write your unwritten days together in chronological order, or go to %s to write it by itself.")
+                :format(firstLabel, bulk and bulk[1] or "Write with AI", firstLabel)
+            local goFirst = { "Go to " .. firstLabel, function() self:Select(firstUnwritten.id) end,
+                { "Write " .. firstLabel .. " first", "Jump to the earliest unwritten day if you prefer to write one day at a time." } }
             self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, body, {
                 deleteOnly = true,
                 nav = nav,
-                primary = { "Go to " .. firstLabel, function() self:Select(firstUnwritten.id) end,
-                    { "Write " .. firstLabel .. " first", "Each day builds on the story so far. Write your earlier saved day with AI first, and this day's prompt will unlock." } },
+                primary = bulk or goFirst,
+                secondary = bulk and goFirst or nil,
             })
         else
-            body = body .. "\n\n|cff5a3a1aSaved for later.|r Click |cff5a3a1aWrite with AI|r whenever you're ready to copy the prompt and paste the AI's reply."
+            if bulk then
+                body = body .. ("\n\n|cff5a3a1aSaved for later.|r Click |cff5a3a1aWrite with AI|r to write just this day, or |cff5a3a1a%s|r to write a batch of unwritten days in one go."):format(bulk[1])
+            else
+                body = body .. "\n\n|cff5a3a1aSaved for later.|r Click |cff5a3a1aWrite with AI|r whenever you're ready to copy the prompt and paste the AI's reply."
+            end
             self:ShowPage(DayLabel(e.day, e.dayEnd), e.title, place, body, {
                 deleteOnly = true,
                 nav = nav,
@@ -741,6 +766,7 @@ function Journal:ShowEntryPage(e)
                     local job, err = QH.Bridge.UnwrittenEntryJob(e)
                     if job then QH.Bridge:Show(job) elseif err then QH:Print(err) end
                 end, { "Write with AI", "Copy the prompt for this saved day into any AI chat, then paste the reply." } },
+                secondary = bulk,
             })
         end
         return

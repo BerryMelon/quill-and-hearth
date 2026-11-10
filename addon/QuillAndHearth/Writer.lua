@@ -322,6 +322,127 @@ function QH:SaveUnwrittenEntry(id, reply)
     return target
 end
 
+--- Collect up to P.MAX_BULK_ENTRIES unwritten days in chronological order (saved-for-later entries first,
+--- followed by tonight's live pending page if any). Returns nil if fewer than 2 unwritten days exist.
+function QH:GetUnwrittenBatch()
+    if not self.char then return nil end
+    local profile = self:GetProfile()
+    local allEntries = self:GetEntries()
+    local queue = {}
+    for _, e in ipairs(allEntries) do
+        if e.unwritten and e.digest then
+            table.insert(queue, { kind = "entry", entry = e, digest = e.digest, people = e.people })
+        end
+    end
+    local sittings = P.FindSittings(self.char.events, self:GetProcessedThrough())
+    if #sittings > 0 then
+        local digest = P.BuildDigest(sittings, NextDay(), P.DeriveHooks(profile))
+        local people = PeopleMetBefore(self.char.people, digest, sittings)
+        local opts = self:GetWriteOptions()
+        opts.people = people
+        table.insert(queue, {
+            kind = "pending",
+            pending = { digest = digest, sittings = sittings, opts = opts },
+            digest = digest,
+            people = people,
+        })
+    end
+
+    local totalUnwritten = #queue
+    if totalUnwritten < 2 then return nil end
+
+    local items = {}
+    local maxCount = P.MAX_BULK_ENTRIES or 4
+    for i = 1, math.min(totalUnwritten, maxCount) do
+        table.insert(items, queue[i])
+    end
+
+    local firstId = items[1].entry and items[1].entry.id or nil
+    local titles = RecentTitles(allEntries, firstId)
+    local opts = self:GetWriteOptions()
+    local memory = self:GetJournal().memory
+    local fullPrompt = P.BuildBulkPrompt(profile, self.char.meta, memory, items, titles, opts)
+    local sessionOpts = { length = opts.length, session = true }
+    local sessionPrompt = P.BuildBulkPrompt(profile, self.char.meta, memory, items, titles, sessionOpts)
+    local prompt = self:IsAISessionStarted() and sessionPrompt or fullPrompt
+    return {
+        items = items,
+        count = #items,
+        totalUnwritten = totalUnwritten,
+        prompt = prompt,
+        fullPrompt = fullPrompt,
+        sessionPrompt = sessionPrompt,
+    }
+end
+
+--- Save a multi-entry AI reply across the consecutive unwritten items in `batch`.
+function QH:SaveBulkUnwrittenEntries(batch, reply)
+    if not batch or not batch.items or #batch.items == 0 then
+        return nil, "Nothing is waiting to be written."
+    end
+    local parsed = P.ParseBulkReply(reply)
+    if not parsed or not parsed.entries or #parsed.entries == 0 then
+        return nil, BAD_PASTE
+    end
+
+    local profile = self:GetProfile()
+    local j = self:GetJournal()
+    local savedCount = 0
+    local lastSaved
+    local n = math.min(#batch.items, #parsed.entries)
+    for i = 1, n do
+        local item = batch.items[i]
+        local r = parsed.entries[i]
+        local runningMemory = j.memory
+        local titles = RecentTitles(self:GetEntries(), item.entry and item.entry.id or nil)
+        local singleFullPrompt = P.BuildPrompt(profile, self.char.meta, runningMemory, item.digest, titles, {
+            length = self:GetSetting("length"),
+            people = item.people,
+        })
+
+        if item.kind == "entry" and item.entry then
+            local target = self:FindEntry(item.entry.id)
+            if target and target.unwritten then
+                target.title = r.title
+                target.body = r.body
+                target.source = "paste"
+                target.prompt = singleFullPrompt
+                target.unwritten = nil
+                target.digest = nil
+                target.people = nil
+                if r.memory and r.memory ~= "" then
+                    j.memory = r.memory
+                end
+                savedCount = savedCount + 1
+                lastSaved = target
+            end
+        elseif item.kind == "pending" and item.pending then
+            item.pending.fullPrompt = singleFullPrompt
+            item.pending.prompt = singleFullPrompt
+            local entry = StoreEntry(item.pending, r.title, r.body, r.memory, "paste")
+            if entry then
+                savedCount = savedCount + 1
+                lastSaved = entry
+            end
+        end
+    end
+
+    if savedCount == 0 then
+        return nil, "Those entries were already written."
+    end
+    if parsed.memory and parsed.memory ~= "" then
+        j.memory = parsed.memory
+    end
+    self:SetAISessionStarted(true)
+    self:Send("ENTRY_WRITTEN", lastSaved)
+    return {
+        id = lastSaved and lastSaved.id or nil,
+        title = lastSaved and lastSaved.title or "Untitled",
+        count = savedCount,
+        entry = lastSaved,
+    }
+end
+
 --- Replace an existing entry with a newly pasted AI version (from the entry's stored prompt).
 --- The story memory is only updated when rewriting the newest entry, so older rewrites
 --- can't rewind the story.

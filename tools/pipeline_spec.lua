@@ -570,6 +570,81 @@ do
         local sessionPrompt = P.BuildPrompt(nil, { name = "Eminai" }, "", qd, {}, { session = true })
         assert(not sessionPrompt:find("SMALL SLICE-OF-LIFE MOMENTS", 1, true), "session prompt should stay lean without pre-scripted cues")
     end)
+
+    test("Batched bulk prompts and multi-entry reply saving (up to MAX_BULK_ENTRIES at a time)", function()
+        W.char.events = {}
+        W.char.journal = nil
+        W:SetAISessionStarted(false)
+
+        -- Create 4 saved-for-later days + 1 live pending day (5 unwritten total).
+        for day = 1, 5 do
+            local seqBase = (day - 1) * 2
+            table.insert(W.char.events, {
+                seq = seqBase + 1, t = day * 1000, type = "quest_done",
+                questID = 500 + day, title = "Task Day " .. day, questLine = "Lakeshire", zone = "Redridge Mountains", level = 20,
+            })
+            table.insert(W.char.events, {
+                seq = seqBase + 2, t = day * 1000 + 100, type = "rest",
+                kind = "rested", indoors = true, zone = "Redridge Mountains", subzone = "Lakeshire", hour = 21, level = 20,
+            })
+            if day <= 4 then
+                local p = W:GetPendingWrite()
+                W:SavePendingForLater(p)
+            end
+        end
+
+        local batch = W:GetUnwrittenBatch()
+        assert(batch, "batch should exist when 5 unwritten days are queued")
+        eq(batch.totalUnwritten, 5)
+        eq(batch.count, P.MAX_BULK_ENTRIES)
+        assert(batch.fullPrompt:find("=== ENTRY 1 OF 4 (Day 1) ===", 1, true), "Entry 1 header in bulk prompt")
+        assert(batch.fullPrompt:find("=== ENTRY 4 OF 4 (Day 4) ===", 1, true), "Entry 4 header in bulk prompt")
+        assert(not batch.fullPrompt:find("Task Day 5", 1, true), "Day 5 held for the next batch")
+        assert(not batch.sessionPrompt:find("CHARACTER", 1, true), "session bulk prompt omits CHARACTER block")
+
+        local bulkReply = table.concat({
+            "=== ENTRY 1 (Day 1) ===",
+            "TITLE: First Watch at Lakeshire",
+            "ENTRY:",
+            "The bridge over the lake creaked under the wagons.",
+            "",
+            "=== ENTRY 2 (Day 2) ===",
+            "TITLE: Smoke in the Canyons",
+            "ENTRY:",
+            "We tracked the gnolls into the red hills.",
+            "",
+            "=== ENTRY 3 (Day 3) ===",
+            "TITLE: Iron and Ash",
+            "ENTRY:",
+            "Oslow needed his tools before the mortar dried.",
+            "",
+            "=== ENTRY 4 (Day 4) ===",
+            "TITLE: Lanterns on the Pier",
+            "ENTRY:",
+            "The mist rolled in across Lake Everstill.",
+            "MEMORY: Grok spent four days defending Lakeshire and aiding Foreman Oslow.",
+        }, "\n")
+
+        local saved = W:SaveBulkUnwrittenEntries(batch, bulkReply)
+        assert(saved, "bulk save succeeded")
+        eq(saved.count, 4)
+        eq(W:GetJournal().memory, "Grok spent four days defending Lakeshire and aiding Foreman Oslow.")
+
+        local entries = W:GetEntries()
+        eq(#entries, 4)
+        eq(entries[1].title, "First Watch at Lakeshire")
+        eq(entries[1].body, "The bridge over the lake creaked under the wagons.")
+        assert(not entries[1].body:find("ENTRY 2", 1, true), "divider stripped from entry body")
+        assert(entries[1].prompt and entries[1].prompt:find("Task Day 1", 1, true), "individual prompt saved for future rewrites")
+        eq(entries[4].title, "Lanterns on the Pier")
+        eq(entries[4].unwritten, nil)
+        eq(W:GetFirstUnwrittenEntry(), nil, "all 4 saved-for-later entries are now written")
+
+        -- Day 5 (the live pending page) is now unblocked and ready to write!
+        local pending5 = W:GetPendingWrite()
+        assert(pending5 and pending5.prompt, "Day 5 is now unblocked with the updated STORY SO FAR")
+        assert(pending5.fullPrompt:find("Grok spent four days defending Lakeshire", 1, true), "Day 5 has the bulk batch's MEMORY")
+    end)
 end
 print(("%d Lua tests passed in total (v0.11)"):format(passed))
 

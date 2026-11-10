@@ -667,6 +667,61 @@ function P.ShortenPrompt(fullPrompt, name)
     return header .. fullPrompt:sub(idx)
 end
 
+P.MAX_BULK_ENTRIES = 4
+
+local function DayRangeLabel(d)
+    if d.endDay and d.endDay ~= d.startDay then
+        return ("Days %d - %d"):format(d.startDay or 1, d.endDay)
+    end
+    return ("Day %d"):format(d.startDay or 1)
+end
+
+--- Build a batched prompt covering 2..MAX_BULK_ENTRIES consecutive unwritten days in chronological order.
+--- items: array of { digest = ..., people = ... }
+function P.BuildBulkPrompt(profile, meta, memory, items, previousTitles, opts)
+    opts = opts or {}
+    local out = {}
+    local function line(s) table.insert(out, s or "") end
+    local lengthRule = P.LENGTH_RULES[opts.length] or P.LENGTH_RULES.normal
+    local count = #items
+    local name = (profile and profile.name) or (meta and meta.name) or "the character"
+
+    if opts.session then
+        line(("Write the next %d journal entries for %s in first person, past tense, in chronological order, using the character sheet and rules from earlier in this chat. Give EACH entry its own full depth and length (%s No date line.) — do NOT rush or compress later entries just because you are writing %d in one reply. Focus each entry on 1 or 2 centerpiece moments and elaborate on them imaginatively (never write a quest-by-quest checklist), and describe combat creatively without using exact game ability names."):format(count, name, lengthRule, count))
+        line()
+    else
+        line(RULES:format(lengthRule))
+        line(("- You are writing a batch of %d consecutive journal entries in chronological order. Give EACH entry the full depth and word count above — do NOT rush or compress later entries."):format(count))
+        line()
+        line("CHARACTER")
+        line(P.DescribeCharacter(profile, meta))
+        line()
+        line("STORY SO FAR")
+        line(memory and memory ~= "" and memory or "This is the first entry in the journal.")
+        if previousTitles and #previousTitles > 0 then
+            line("Previous entry titles (avoid repeating): " .. table.concat(previousTitles, " | "))
+        end
+        line()
+    end
+
+    for i, item in ipairs(items) do
+        line(("=== ENTRY %d OF %d (%s) ==="):format(i, count, DayRangeLabel(item.digest)))
+        AppendMoments(out, meta, item.digest, { people = item.people })
+        line()
+    end
+
+    line(("Reply with all %d entries in chronological order in EXACTLY this format, with nothing before or after it:"):format(count))
+    for i, item in ipairs(items) do
+        line(("=== ENTRY %d (%s) ==="):format(i, DayRangeLabel(item.digest)))
+        line(("TITLE: <a short evocative title for %s, 2-6 words>"):format(DayRangeLabel(item.digest)))
+        line("ENTRY:")
+        line(("<the full journal entry for %s, paragraphs separated by a blank line>"):format(DayRangeLabel(item.digest)))
+        line()
+    end
+    line("MEMORY: <the whole story so far including all entries written above, third person, under 140 words, for continuity next time>")
+    return table.concat(out, "\n")
+end
+
 ---------------------------------------------------------------------------
 -- Parse the AI's reply (tolerant of markdown and missing markers)
 ---------------------------------------------------------------------------
@@ -717,6 +772,58 @@ function P.ParseReply(text)
     title = title and title:gsub('^["\']', ""):gsub('["\']$', "") or "Untitled"
     if title == "" then title = "Untitled" end
     return { title = title, body = body, memory = memory and memory ~= "" and memory or nil }
+end
+
+--- Parse a multi-entry AI reply into { entries = { { title, body, memory }, ... }, memory = lastMemory }.
+function P.ParseBulkReply(text)
+    if type(text) ~= "string" then return nil end
+    local cleaned = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|", "")
+    cleaned = cleaned:gsub("\r\n?", "\n"):gsub("%*%*", ""):gsub("__", "")
+    -- Strip section divider lines like "=== ENTRY 1 ===", "--- Day 5 ---", or horizontal rules so they don't leak into entry bodies.
+    local lines = {}
+    for line in (cleaned .. "\n"):gmatch("([^\n]*)\n") do
+        local trimmed = strtrim(line):gsub("^#+%s*", "")
+        local lower = trimmed:lower()
+        local isDivider = trimmed:match("^[=%-_][=%-_][=%-_]+$") ~= nil
+            or lower:match("^[=%-_*#]*%s*entry%s+%d+") ~= nil
+            or lower:match("^[=%-_*#]+%s*days?%s+%d+") ~= nil
+        if not isDivider then
+            table.insert(lines, line)
+        end
+    end
+    cleaned = "\n" .. table.concat(lines, "\n")
+
+    local starts = {}
+    local pos = 1
+    local lower = cleaned:lower()
+    while true do
+        local matchStart, matchEnd = lower:find("\n[ \t]*#*[ \t]*title%s*:", pos)
+        if not matchStart then break end
+        table.insert(starts, matchStart + 1)
+        pos = matchEnd + 1
+    end
+
+    if #starts == 0 then
+        local single = P.ParseReply(text)
+        if not single then return nil end
+        return { entries = { single }, memory = single.memory }
+    end
+
+    local entries = {}
+    local lastMemory
+    for i, startIdx in ipairs(starts) do
+        local endIdx = starts[i + 1] and (starts[i + 1] - 1) or #cleaned
+        local slice = cleaned:sub(startIdx, endIdx)
+        local parsed = P.ParseReply(slice)
+        if parsed and parsed.body and parsed.body ~= "" then
+            table.insert(entries, parsed)
+            if parsed.memory and parsed.memory ~= "" then
+                lastMemory = parsed.memory
+            end
+        end
+    end
+    if #entries == 0 then return nil end
+    return { entries = entries, memory = lastMemory }
 end
 
 ---------------------------------------------------------------------------

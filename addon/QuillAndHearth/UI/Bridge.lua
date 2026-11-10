@@ -114,6 +114,19 @@ function Bridge.UnwrittenEntryJob(entry)
     }
 end
 
+function Bridge.BulkJob(batch)
+    batch = batch or QH:GetUnwrittenBatch()
+    if not batch then return nil, "Need at least two unwritten days to write a batch." end
+    return {
+        kind = "bulk",
+        count = batch.count,
+        prompt = batch.prompt,
+        fullPrompt = batch.fullPrompt,
+        sessionPrompt = batch.sessionPrompt,
+        save = function(text) return QH:SaveBulkUnwrittenEntries(batch, text) end,
+    }
+end
+
 function Bridge.RewriteJob(entry)
     local profile = QH:GetProfile()
     local name = (profile and profile.name) or (QH.char and QH.char.meta and QH.char.meta.name)
@@ -139,6 +152,8 @@ end
 local TEXTS = {
     entry = { title = "Write with AI", save = "Save to journal",
         done = '"%s" was written into your journal.' },
+    bulk = { title = "Write %d entries with AI", save = "Save entries",
+        done = '%d entries were written into your journal (latest: "%s").' },
     rewrite = { title = "Rewrite with AI", save = "Replace entry",
         done = 'Your entry was rewritten: "%s".' },
     chapter = { title = "Chapter summary with AI", save = "Save summary",
@@ -284,6 +299,15 @@ local function BuildWriteDialog()
             f.note:SetText("|cffff5050Paste the AI's reply first.|r")
             return
         end
+        if automatic and job.kind == "bulk" then
+            local parsed = QH.Pipeline.ParseBulkReply(text)
+            if not parsed or #parsed.entries < (job.count or 2) then
+                if parsed and #parsed.entries > 0 then
+                    f.note:SetText(("%d of %d entries detected. Click Save entries to save now, or paste the rest."):format(#parsed.entries, job.count or 2))
+                end
+                return
+            end
+        end
         f.saving = true
         local result, err = job.save(text)
         f.saving = false
@@ -293,7 +317,11 @@ local function BuildWriteDialog()
         end
         f.replyBox:SetText("")
         f:Hide()
-        QH:Print((TEXTS[job.kind] or TEXTS.entry).done:format(result.title or "Untitled"))
+        if job.kind == "bulk" then
+            QH:Print(TEXTS.bulk.done:format(result.count or 1, result.title or "Untitled"))
+        else
+            QH:Print((TEXTS[job.kind] or TEXTS.entry).done:format(result.title or "Untitled"))
+        end
         QH.Journal:Open()
         QH.Journal:Refresh(job.select or result.id or true)
     end
@@ -323,7 +351,8 @@ function Bridge:Show(job)
     local f = self.dialog
     local texts = TEXTS[job.kind] or TEXTS.entry
     self.job = job
-    if f.SetTitle then f:SetTitle(texts.title) end
+    local title = job.kind == "bulk" and texts.title:format(job.count or 2) or texts.title
+    if f.SetTitle then f:SetTitle(title) end
     f.save:SetText(texts.save)
 
     local hasSessionModes = job.fullPrompt ~= nil and job.sessionPrompt ~= nil and job.fullPrompt ~= job.sessionPrompt
